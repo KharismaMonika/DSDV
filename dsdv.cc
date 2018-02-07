@@ -80,7 +80,7 @@ static inline double
 jitter (double max, int be_random_)
 {
   FILE *fp = fopen("dsdv.log","a+");
-  return (be_random_ ? Random::uniform(max) : 0);
+  fprintf(fp, "\n line 83 \n"); return (be_random_ ? Random::uniform(max) : 0);
   fprintf(fp, "\n Masuk fungsi jitter \n");
   fclose(fp);
 }
@@ -91,15 +91,17 @@ trace (char *fmt,...)
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "DSDV_Agent::trace\n");
   
-  va_list ap;
+  va_list ap; fprintf(fp, "\n line 94 \n");
 
   if (!tracetarget)
-    return;
+  {
+    return; fprintf(fp, "\n line 98 \n");
+  }
 
-  va_start (ap, fmt);
-  vsprintf (tracetarget->pt_->buffer(), fmt, ap);
-  tracetarget->pt_->dump ();
-  va_end (ap);
+  va_start (ap, fmt); fprintf(fp, "\n line 101 \n");
+  vsprintf (tracetarget->pt_->buffer(), fmt, ap); fprintf(fp, "\n line 102 \n");
+  tracetarget->pt_->dump (); fprintf(fp, "\n line 103 \n");
+  va_end (ap); fprintf(fp, "\n line 104 \n");
 
   fclose(fp);
 }
@@ -117,7 +119,7 @@ DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
   int ct = *(walk++);
   int seq, dst, met;
 
-  snprintf (buf, 1024, "V%s %.5f _%d_ [%d]:", type, now, me, ct); // penyimpanan di buffer dg ukuran 1024. 
+  snprintf (buf, 1024, "V%s %.5f _%d_ [%d]:", type, now, me, ct); fprintf(fp, "\n line 122"); // penyimpanan di buffer dg ukuran 1024. 
   //fprintf(fp, "di trace paket :  type : V%s now : %.5f me: _%d_ ct: [%d]:", type, now, me, ct);
   while (ct--)
     {
@@ -133,14 +135,14 @@ DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
       snprintf (buf, 1024, "%s (%d,%d,%d)", buf, dst, met, seq);
       //fprintf(fp, "di trace paket :(dst: %d,met: %d,seq: %d)", dst, met, seq);
     }
-
+    fprintf(fp, "\n line 124");
   fprintf(fp, "\n");
 
   // Now do trigger handling.
   //trace("VTU %.5f %d", now, me);
   if (verbose_){
     fprintf(fp, "Masuk jika update krn triger\n");
-    trace ("%s", buf);
+    trace ("%s", buf); fprintf(fp, "\n line 145");
     fprintf(fp, "%s", buf);
   }
   fclose(fp);
@@ -152,22 +154,23 @@ DSDV_Agent::output_rte(const char *prefix, rtable_ent * prte, DSDV_Agent * a)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "DSDV_Agent::output_rte\n");
-  fclose(fp);
-  a->trace("DFU: deimplemented");
-  printf("DFU: deimplemented");
+  
+  a->trace("DFU: deimplemented"); fprintf(fp, "\n line 158");
+  printf("DFU: deimplemented"); fprintf(fp, "\n line 159");
 
   prte = 0;
-  prefix = 0;
-#if 0
-  printf ("%s%d %d %d %d %f %f %f %f 0x%08x\n",
-	  prefix, prte->dst, prte->hop, prte->metric, prte->seqnum,
-	  prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
-	  (unsigned int) prte->timeout_event);
-  a->trace ("VTE %.5f %d %d %d %d %f %f %f %f 0x%08x",
-          Scheduler::instance ().clock (), prte->dst, prte->hop, prte->metric,
-	  prte->seqnum, prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
-	    prte->timeout_event);
-#endif
+  prefix = 0; fprintf(fp, "\n line 162");
+  #if 0
+    printf ("%s%d %d %d %d %f %f %f %f 0x%08x\n",
+  	  prefix, prte->dst, prte->hop, prte->metric, prte->seqnum,
+  	  prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
+  	  (unsigned int) prte->timeout_event);
+    a->trace ("VTE %.5f %d %d %d %d %f %f %f %f 0x%08x",
+            Scheduler::instance ().clock (), prte->dst, prte->hop, prte->metric,
+  	  prte->seqnum, prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
+  	    prte->timeout_event);
+  #endif
+  fclose(fp);
 }
 
 class DSDVTriggerHandler : public Handler {
@@ -183,70 +186,75 @@ void
 DSDVTriggerHandler::handle(Event *e)
  // send a triggered update (or a full update if one's needed)
 {
-FILE *fp = fopen("dsdv.log","a+");
-fprintf(fp, "\n\nDSDVTriggerHandler::handle\n");
+  FILE *fp = fopen("dsdv.log","a+");
+  fprintf(fp, "\n\nDSDVTriggerHandler::handle\n");
 
 	//DEBUG
 	//printf("(%d)-->triggered update with e=%x\n", a->myaddr_,e);
   //fprintf(fp, "(myaddr: %d)-->triggered update with \n", a->myaddr_); 
 
-  Scheduler & s = Scheduler::instance ();
+  Scheduler & s = Scheduler::instance (); fprintf(fp, "\n line 196");
   Time now = s.clock ();
   rtable_ent *prte;
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
-  Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD;
+  Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD; fprintf(fp, "\n line 200");
 
-  for (a->table_->InitLoop(); (prte = a->table_->NextLoop());)
-	  if (prte->trigger_event == e) break;
+  for (a->table_->InitLoop(); (prte = a->table_->NextLoop());) 
+  if (prte->trigger_event == e) break;
 
-  assert(prte && prte->trigger_event == e);
+  assert(prte && prte->trigger_event == e); fprintf(fp, "\n line 205");
 
   if (now < next_possible)
     {
 	    //DEBUG
 	    //printf("(%d)..Re-scheduling triggered update\n",a->myaddr_);
       //fprintf(fp, "(myaddr_: %d)..Re-scheduling triggered update\n",a->myaddr_);
-      s.schedule(a->trigger_handler, e, next_possible - now);
-      a->cancelTriggersBefore(next_possible);
+      s.schedule(a->trigger_handler, e, next_possible - now); fprintf(fp, "\n line 212");
+      a->cancelTriggersBefore(next_possible); fprintf(fp, "\n line 213");
       return;
     }
 
-  update_type = 0;
-  Packet * p = a->makeUpdate(/*in-out*/update_type);
-      
+  update_type = 0; fprintf(fp, "\n line 217");
+  Packet * p = a->makeUpdate(/*in-out*/update_type); fprintf(fp, "\n line 218");
+        
   if (p != NULL) 
-    {	  
-      if (update_type == 1)
-	{ // we got a periodic update, though we only asked for triggered
-	  // cancel and reschedule periodic update
-	  s.cancel(a->periodic_callback_);
-	  //DEBUG
-	  //printf("we got a periodic update, though asked for trigg\n");
-    	fprintf(fp, "we got a periodic update, though asked for trigg\n");
-	  s.schedule (a->helper_, a->periodic_callback_, 
-		      a->perup_ * (0.75 + jitter (0.25, a->be_random_)));
-	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
-	}
-      else
-	{
-	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "TU");	  
-	}
-      assert (!HDR_CMN (p)->xmit_failure_);	// DEBUG 0x2	  
-      s.schedule (a->target_, p, jitter(DSDV_BROADCAST_JITTER, a->be_random_));
-      
-      a->lasttup_ = now; // even if we got a full update, it still counts
-      // for our last triggered update time
-    }
-  
-  // free this event
-  for (a->table_->InitLoop (); (prte = a->table_->NextLoop ());)
-    if (prte->trigger_event && prte->trigger_event == e)
+  {	  
+    if (update_type == 1)
+  	{ // we got a periodic update, though we only asked for triggered
+  	  // cancel and reschedule periodic update
+  	  s.cancel(a->periodic_callback_); fprintf(fp, "\n line 225");
+  	  //DEBUG
+  	  //printf("we got a periodic update, though asked for trigg\n");
+      fprintf(fp, "we got a periodic update, though asked for trigg\n");
+  	  s.schedule (a->helper_, a->periodic_callback_, 
+  		      a->perup_ * (0.75 + jitter (0.25, a->be_random_))); fprintf(fp, "\n line 229");
+  	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	fprintf(fp, "\n line 231");  
+  	}
+    
+    else
+  	{
+  	  if (a->verbose_)
       {
-	prte->trigger_event = 0;
-	delete e;
-      }
+        a->tracepkt (p, now, a->myaddr_, "TU");	fprintf(fp, "\n line 238");
+      }  
+  	}
 
-  fclose(fp);
+    assert (!HDR_CMN (p)->xmit_failure_);	// DEBUG 0x2	  
+    s.schedule (a->target_, p, jitter(DSDV_BROADCAST_JITTER, a->be_random_)); fprintf(fp, "\n line 243");
+    
+    a->lasttup_ = now; // even if we got a full update, it still counts
+    // for our last triggered update time
+  }
+    
+    // free this event
+    for (a->table_->InitLoop (); (prte = a->table_->NextLoop ());)
+      if (prte->trigger_event && prte->trigger_event == e)
+        {
+  	prte->trigger_event = 0;
+  	delete e;
+        }
+
+    fclose(fp);
 }
 
 void
@@ -324,6 +332,7 @@ DSDV_Agent::helper_callback (Event * e)
   // Check for periodic callback. Kayaknya disini yang cek scra periodik untuk update
   if (periodic_callback_ && e == periodic_callback_)// jika update secara periodik, eventny periodic
     {
+      fprintf(fp, "\n periodic_callback\n");
       update_type = 1; // tipe update periodik
       Packet *p = makeUpdate(/*in-out*/update_type);
 
@@ -1382,7 +1391,7 @@ DSDV_Agent::startUp()
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n \n DSDV_Agent::startUp \n");
 
-  Time now = Scheduler::instance().clock();
+  fprintf(fp, "\n line 1394 \n"); Time now = Scheduler::instance().clock();
 
   subnet_ = Address::instance().get_subnetaddr(myaddr_);
   //DEBUG
@@ -1391,9 +1400,9 @@ DSDV_Agent::startUp()
   //printf("myaddress: %d -> %s\n",myaddr_,address);
   double speed;
   speed = node_->speed();
-  fprintf(fp, "Speed : %f \n", speed);
+  //fprintf(fp, "Speed : %f \n", speed);
   speed_node[myaddr_] = node_->speed();
-  fprintf(fp, " speed : %.15f\n",speed_node[myaddr_] );
+  fprintf(fp, "time now = %.5f , myaddr: %d , speed : %.15f\n", myaddr_, now, speed_node[myaddr_] );
 
   /*
   double xpos;
@@ -1414,8 +1423,8 @@ DSDV_Agent::startUp()
   fprintf(fp, "myaddr: %d -> address : %s \n",myaddr_,address); // alamat nodenya 
   */
 
-  rtable_ent rte;
-  bzero(&rte, sizeof(rte)); // sama dengan memset, sebesar ukuran routing table
+  rtable_ent rte; fprintf(fp, "\n line 1426\n");
+  bzero(&rte, sizeof(rte)); fprintf(fp, "\n line 1427 \n"); // sama dengan memset, sebesar ukuran routing table
   //fprintf(fp, "size routing table: %ld \n",sizeof(rte));
   //fprintf(fp, "perup my addr %.5f \n",  rte.perup_ );
 
@@ -1440,17 +1449,17 @@ DSDV_Agent::startUp()
   
   rte.q = 0;		// Don't buffer pkts for self!
   
-  table_->AddEntry (rte); //memasukkan ke tabel
+  table_->AddEntry (rte); fprintf(fp, "\n line 1452\n"); //memasukkan ke tabel
   /*
   fprintf(fp, " rte.dst =%d , rte.hop=%d ,rte.metric=%d ,rte.seqnum=%d ,rte.advertise_ok_at=%.5f ,rte.advert_seqnum=%d ,rte.advert_metric=%d ,rte.changed_at=%.5f ,rte.new_seqnum_at= %.5f , rte.wst= %d , rte.timeout_event = %d \n",
     rte.dst, rte.hop, rte.metric,rte.seqnum,rte.advertise_ok_at,rte.advert_seqnum, rte.advert_metric,rte.changed_at, rte.new_seqnum_at, rte.wst, rte.timeout_event);
   fprintf(fp, "kick off periodic advertisments \n");
   */
   // kick off periodic advertisments --> Masuk ini
-  periodic_callback_ = new Event ();
+  periodic_callback_ = new Event (); fprintf(fp, "\n line 1459 \n");
   Scheduler::instance ().schedule (helper_, 
 				   periodic_callback_,
-				   jitter (DSDV_STARTUP_JITTER, be_random_));
+				   jitter (DSDV_STARTUP_JITTER, be_random_)); fprintf(fp, "\n line 1460");
 
   fclose(fp);
 }
