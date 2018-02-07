@@ -222,7 +222,7 @@ fprintf(fp, "\n\nDSDVTriggerHandler::handle\n");
 	  s.cancel(a->periodic_callback_);
 	  //DEBUG
 	  //printf("we got a periodic update, though asked for trigg\n");
-    fprintf(fp, "we got a periodic update, though asked for trigg\n");
+    	fprintf(fp, "we got a periodic update, though asked for trigg\n");
 	  s.schedule (a->helper_, a->periodic_callback_, 
 		      a->perup_ * (0.75 + jitter (0.25, a->be_random_)));
 	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
@@ -284,6 +284,12 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
   
   Scheduler & s = Scheduler::instance();
   Time now = Scheduler::instance().clock();
+  double speed;
+  speed = node_->speed();
+  //fprintf(fp, "Speed : %f \n", speed);
+  speed_node[myaddr_] = node_->speed();
+
+  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f\n",now , myaddr_, speed_node[myaddr_] );
 
   assert(t >= now);
 
@@ -655,7 +661,6 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
   assert(new_rte);
 
   Time now = Scheduler::instance().clock();
-
   double speed;
   speed = node_->speed();
   //fprintf(fp, "Speed : %f \n", speed);
@@ -677,10 +682,21 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
   fprintf(fp, "ISI: new rte metric: %d , old_rte:%d , waktu: %.12lf from %d to %d , nxthp:%d , new_rte->seqnum:%d, new_rte->hop:%d \n", 
     new_rte->metric, old_rte,now,myaddr_ , new_rte->dst, new_rte->hop,new_rte->seqnum, new_rte->hop);
   */
+  fprintf (RTE, "%c %.5f _%d_ (%d,%d->%d,%d->%d,%d->%d,%f)\n",
+    (new_rte->metric != BIG 
+     && (!old_rte || old_rte->metric != BIG)) ? 'D' : 'U', 
+    now, myaddr_, new_rte->dst, 
+    old_rte ? old_rte->metric : negvalue, new_rte->metric, 
+    old_rte ? old_rte->seqnum : negvalue,  new_rte->seqnum,
+    old_rte ? old_rte->hop : -1,  new_rte->hop, 
+    new_rte->advertise_ok_at);
 
   table_->AddEntry (*new_rte);
   //printf("(%d),Route table updated..\n",myaddr_);
   //fprintf(fp, "(%d),MY Route table updated..\n",myaddr_);
+  fprintf(RTE,"(my address : %d),Route table updated..\n",myaddr_);
+fprintf (RTE,"VWST %.12lf frm %d to %d wst %.12lf nxthp %d [of %d]\n",now, myaddr_, new_rte->dst, new_rte->wst, new_rte->hop, new_rte->metric);
+
   if (trace_wst_){
     trace ("VWST %.12lf frm %d to %d wst %.12lf nxthp %d [of %d]",
 	   now, myaddr_, new_rte->dst, new_rte->wst, new_rte->hop, 
@@ -703,11 +719,17 @@ DSDV_Agent::processUpdate (Packet * p)
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n\nDSDV_Agent::processUpdate\n");
   //fprintf(fp, "ini fungsi untuk update RoutingTable\n");
-  fprintf(fp, "my address %d \n", myaddr_);
+  double speed;
+  speed = node_->speed();
+  //fprintf(fp, "Speed : %f \n", speed);
+  speed_node[myaddr_] = node_->speed();
+  
   
   hdr_ip *iph = HDR_IP(p);
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
+
+  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f\n",now , myaddr_, speed_node[myaddr_] );
   
   // it's a dsdv packet
   int i;
@@ -1335,6 +1357,8 @@ DSDV_Agent::DSDV_Agent (): Agent (PT_MESSAGE), ll_queue (0), seqno_ (0),
   alpha_ (0.875),  wst0_ (6), perup_ (15), 
   min_update_periods_ (3)	// constants
  {
+
+ 	RTE=fopen("rte.txt","w");
   table_ = new RoutingTable ();
   helper_ = new DSDV_Helper (this);
   trigger_handler = new DSDVTriggerHandler(this);
