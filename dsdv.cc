@@ -69,11 +69,19 @@ extern "C" {
 
 /* Percobaan Penyimpanan Data*/
 int count_node = 30; // 0 sampai 29
-
 float *speed_node = (float*) malloc (count_node * sizeof(float));
+double *perup_node = (double*) malloc (count_node * sizeof(double));
+double *minup_node = (double*) malloc (count_node * sizeof(double));
 
-
-
+/*
+  double speed;
+  speed = node_->speed();
+  speed_node[myaddr_] = node_->speed();
+  if(speed_node[myaddr_]>=25){
+    perup_node[myaddr_]= 5;
+    minup_node[myaddr_]= 2;
+  }
+*/
 
 // Returns a random number between 0 and max
 static inline double 
@@ -293,8 +301,11 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
   Time now = Scheduler::instance().clock();
   double speed;
   speed = node_->speed();
-  //fprintf(fp, "Speed : %f \n", speed);
   speed_node[myaddr_] = node_->speed();
+  if(speed_node[myaddr_]>=25){
+    perup_node[myaddr_]= 5;
+    minup_node[myaddr_]= 2;
+  }
 
   fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f\n",now , myaddr_, speed_node[myaddr_] );
 
@@ -320,6 +331,14 @@ DSDV_Agent::helper_callback (Event * e)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n \n DSDV_Agent::helper_callback\n");
+
+  double speed;
+  speed = node_->speed();
+  speed_node[myaddr_] = node_->speed();
+  if(speed_node[myaddr_]>=25){
+    perup_node[myaddr_]= 5;
+    minup_node[myaddr_]= 2;
+  }
   
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
@@ -674,8 +693,13 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
   Time now = Scheduler::instance().clock();
   double speed;
   speed = node_->speed();
-  //fprintf(fp, "Speed : %f \n", speed);
   speed_node[myaddr_] = node_->speed();
+  if(speed_node[myaddr_]>=25){
+    perup_node[myaddr_]= 5;
+    minup_node[myaddr_]= 2;
+  }
+
+
   fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f\n",now , myaddr_, speed_node[myaddr_] );
 
   char buf[1024];
@@ -1413,6 +1437,8 @@ DSDV_Agent::startUp()
   speed = node_->speed();
   //fprintf(fp, "Speed : %f \n", speed);
   speed_node[myaddr_] = node_->speed();
+  perup_node[myaddr_] = perup_ ;
+  minup_node[myaddr_] = min_update_periods_;
   fprintf(fp, "time now = %.5f , myaddr: %d , speed : %.15f\n", myaddr_, now, speed_node[myaddr_] );
 
   /*
