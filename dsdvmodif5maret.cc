@@ -49,14 +49,15 @@ extern "C" {
 #include <cmu-trace.h>
 #include <address.h>
 #include <mobilenode.h>
-
+#include <stdio.h>
+#include <stdlib.h>
 
 #define DSDV_STARTUP_JITTER 2.0	// secs to jitter start of periodic activity from
-				// when start-dsr msg sent to agent
+				// when start-dsr msg sent to agent  
 #define DSDV_ALMOST_NOW     0.1 // jitter used for events that should be effectively
 				// instantaneous but are jittered to prevent
 				// synchronization
-#define DSDV_BROADCAST_JITTER 0.01 // jitter for all broadcast packets
+#define DSDV_BROADCAST_JITTER 0.01 // jitter for all broadcast packets, delay pengiriman antar paket
 #define DSDV_MIN_TUP_PERIOD 1.0 // minimum time between triggered updates
 #define IP_DEF_TTL   32 // default TTTL
 
@@ -67,33 +68,49 @@ extern "C" {
    routing metric changes */
 
 /* Percobaan Penyimpanan Data*/
-int count_node = 40; // 0 sampai 29
+int count_node = 30; // 0 sampai 29
 float *speed_node = (float*) malloc (count_node * sizeof(float));
 double *perup_node = (double*) malloc (count_node * sizeof(double));
 double *minup_node = (double*) malloc (count_node * sizeof(double));
+
+/*
+  double speed;
+  speed = node_->speed();
+  speed_node[myaddr_] = node_->speed();
+  if(speed_node[myaddr_]>=25){
+    perup_node[myaddr_]= 5;
+    minup_node[myaddr_]= 2;
+  }
+*/
 
 // Returns a random number between 0 and max
 static inline double 
 jitter (double max, int be_random_)
 {
+  FILE *fp = fopen("dsdv.log","a+");
   return (be_random_ ? Random::uniform(max) : 0);
+  fprintf(fp, "\n Masuk fungsi jitter \n");
+  fclose(fp);
 }
 
 void DSDV_Agent::
 trace (char *fmt,...)
 {
   FILE *fp = fopen("dsdv.log","a+");
-  fprintf(fp, "\n \n DSDV_Agent::trace\n");
-
-  va_list ap;
+  fprintf(fp, "DSDV_Agent::trace\n");
+  
+  va_list ap; fprintf(fp, "\n line 94 \n");
 
   if (!tracetarget)
-    return;
+  {
+    return; fprintf(fp, "\n line 98 \n");
+  }
 
-  va_start (ap, fmt);
-  vsprintf (tracetarget->pt_->buffer (), fmt, ap);
-  tracetarget->pt_->dump ();
-  va_end (ap);
+  va_start (ap, fmt); fprintf(fp, "\n line 101 \n");
+  vsprintf (tracetarget->pt_->buffer(), fmt, ap); fprintf(fp, "\n line 102 \n");
+  tracetarget->pt_->dump (); fprintf(fp, "\n line 103 \n");
+  va_end (ap); fprintf(fp, "\n line 104 \n");
+
   fclose(fp);
 }
 
@@ -101,16 +118,17 @@ void
 DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
 {
   FILE *fp = fopen("dsdv.log","a+");
-  fprintf(fp, "\n \n DSDV_Agent::tracepkt\n");
+  fprintf(fp, "DSDV_Agent::tracepkt\n");
+  
+  char buf[1024]; // untuk menyimpan buffer paket, apa itu buffer, inget waktu jarkom
 
-  char buf[1024];
-
-  unsigned char *walk = p->accessdata ();
+  unsigned char *walk = p->accessdata();
 
   int ct = *(walk++);
   int seq, dst, met;
 
-  snprintf (buf, 1024, "V%s %.5f _%d_ [%d]:", type, now, me, ct);
+  snprintf (buf, 1024, "V%s %.5f _%d_ [%d]:", type, now, me, ct); fprintf(fp, "\n line 122"); // penyimpanan di buffer dg ukuran 1024. 
+  //fprintf(fp, "di trace paket :  type : V%s now : %.5f me: _%d_ ct: [%d]:", type, now, me, ct);
   while (ct--)
     {
       dst = *(walk++);
@@ -123,12 +141,18 @@ DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
       seq = seq << 8 | *(walk++);
       seq = seq << 8 | *(walk++);
       snprintf (buf, 1024, "%s (%d,%d,%d)", buf, dst, met, seq);
+      //fprintf(fp, "di trace paket :(dst: %d,met: %d,seq: %d)", dst, met, seq);
     }
+    fprintf(fp, "\n line 124");
+  fprintf(fp, "\n");
+
   // Now do trigger handling.
   //trace("VTU %.5f %d", now, me);
-  if (verbose_)
-    trace ("%s", buf);
-
+  if (verbose_){
+    fprintf(fp, "Masuk jika update krn triger\n");
+    trace ("%s", buf); fprintf(fp, "\n line 145");
+    fprintf(fp, "%s", buf);
+  }
   fclose(fp);
 }
 
@@ -137,22 +161,23 @@ void
 DSDV_Agent::output_rte(const char *prefix, rtable_ent * prte, DSDV_Agent * a)
 {
   FILE *fp = fopen("dsdv.log","a+");
-  fprintf(fp, "\n \n DSDV_Agent::output_rte\n");
-  a->trace("DFU: deimplemented");
-  printf("DFU: deimplemented");
+  fprintf(fp, "DSDV_Agent::output_rte\n");
+  
+  a->trace("DFU: deimplemented"); fprintf(fp, "\n line 158");
+  printf("DFU: deimplemented"); fprintf(fp, "\n line 159");
 
   prte = 0;
-  prefix = 0;
-#if 0
-  printf ("%s%d %d %d %d %f %f %f %f 0x%08x\n",
-	  prefix, prte->dst, prte->hop, prte->metric, prte->seqnum,
-	  prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
-	  (unsigned int) prte->timeout_event);
-  a->trace ("VTE %.5f %d %d %d %d %f %f %f %f 0x%08x",
-          Scheduler::instance ().clock (), prte->dst, prte->hop, prte->metric,
-	  prte->seqnum, prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
-	    prte->timeout_event);
-#endif
+  prefix = 0; fprintf(fp, "\n line 162");
+  #if 0
+    printf ("%s%d %d %d %d %f %f %f %f 0x%08x\n",
+  	  prefix, prte->dst, prte->hop, prte->metric, prte->seqnum,
+  	  prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
+  	  (unsigned int) prte->timeout_event);
+    a->trace ("VTE %.5f %d %d %d %d %f %f %f %f 0x%08x",
+            Scheduler::instance ().clock (), prte->dst, prte->hop, prte->metric,
+  	  prte->seqnum, prte->udtime, prte->new_seqnum_at, prte->wst, prte->changed_at,
+  	    prte->timeout_event);
+  #endif
   fclose(fp);
 }
 
@@ -173,104 +198,91 @@ DSDVTriggerHandler::handle(Event *e)
   fprintf(fp, "\n\nDSDVTriggerHandler::handle\n");
 
 	//DEBUG
-	//printf("(%d)-->triggered update with e=%x\n", a->myaddr_,e); 
+	//printf("(%d)-->triggered update with e=%x\n", a->myaddr_,e);
+  fprintf(fp, "(myaddr: %d)-->triggered update with \n", a->myaddr_); 
 
-  Scheduler & s = Scheduler::instance ();
+  Scheduler & s = Scheduler::instance (); fprintf(fp, "\n line 196");
   Time now = s.clock ();
   rtable_ent *prte;
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
+  Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD; fprintf(fp, "\n line 200");
 
-  fprintf(fp, "(myaddr: %d)\n", a->myaddr_);
-  speed_node[a->myaddr_] = a->node_->speed();
-  if(speed_node[a->myaddr_]>=25){
-    perup_node[a->myaddr_]= 5;
-    minup_node[a->myaddr_]= 2;
-  }
-  else {
-    perup_node[a->myaddr_]= 15;
-    minup_node[a->myaddr_]= 3;
-  }
-  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , a->myaddr_, speed_node[a->myaddr_], perup_node[a->myaddr_], minup_node[a->myaddr_] );
 
-  Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD;
+  for (a->table_->InitLoop(); (prte = a->table_->NextLoop());) 
+  if (prte->trigger_event == e) break;
 
-  for (a->table_->InitLoop(); (prte = a->table_->NextLoop());)
-	  if (prte->trigger_event == e) break;
-
-  assert(prte && prte->trigger_event == e);
+  assert(prte && prte->trigger_event == e); fprintf(fp, "\n line 205");
 
   if (now < next_possible)
     {
 	    //DEBUG
 	    //printf("(%d)..Re-scheduling triggered update\n",a->myaddr_);
-      s.schedule(a->trigger_handler, e, next_possible - now);
-      a->cancelTriggersBefore(next_possible);
+      //fprintf(fp, "(myaddr_: %d)..Re-scheduling triggered update\n",a->myaddr_);
+      s.schedule(a->trigger_handler, e, next_possible - now); fprintf(fp, "\n line 212");
+      a->cancelTriggersBefore(next_possible); fprintf(fp, "\n line 213");
       return;
     }
 
-  update_type = 0;
-  Packet * p = a->makeUpdate(/*in-out*/update_type);
-      
+  update_type = 0; fprintf(fp, "\n line 217");
+  Packet * p = a->makeUpdate(/*in-out*/update_type); fprintf(fp, "\n line 218");
+        
   if (p != NULL) 
-    {	  
-      if (update_type == 1)
-	{ // we got a periodic update, though we only asked for triggered
-	  // cancel and reschedule periodic update
-	  s.cancel(a->periodic_callback_);
-	  //DEBUG
-	  //printf("we got a periodic update, though asked for trigg\n");
-	  s.schedule (a->helper_, a->periodic_callback_, 
-		      perup_node[a->myaddr_] * (0.75 + jitter (0.25, a->be_random_)));
-	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
-	}
-      else
-	{
-	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "TU");	  
-	}
-      assert (!HDR_CMN (p)->xmit_failure_);	// DEBUG 0x2	  
-      s.schedule (a->target_, p, jitter(DSDV_BROADCAST_JITTER, a->be_random_));
-      
-      a->lasttup_ = now; // even if we got a full update, it still counts
-      // for our last triggered update time
-    }
-  
-  // free this event
-  for (a->table_->InitLoop (); (prte = a->table_->NextLoop ());)
-    if (prte->trigger_event && prte->trigger_event == e)
+  {	  
+    if (update_type == 1)
+  	{ // we got a periodic update, though we only asked for triggered
+  	  // cancel and reschedule periodic update
+  	  s.cancel(a->periodic_callback_); fprintf(fp, "\n line 225");
+  	  //DEBUG
+  	  //printf("we got a periodic update, though asked for trigg\n");
+      fprintf(fp, "we got a periodic update, though asked for trigg\n");
+  	  s.schedule (a->helper_, a->periodic_callback_, 
+  		      a->perup_ * (0.75 + jitter (0.25, a->be_random_))); fprintf(fp, "\n line 229");
+  	  if (a->verbose_) { a->tracepkt (p, now, a->myaddr_, "PU");	fprintf(fp, "\n line 231"); } 
+  	}
+    
+    else
+  	{
+  	  if (a->verbose_)
       {
-	prte->trigger_event = 0;
-	delete e;
-      }
-  fclose(fp);
+        a->tracepkt (p, now, a->myaddr_, "TU");	fprintf(fp, "\n line 238");
+      }  
+  	}
+
+    assert (!HDR_CMN (p)->xmit_failure_);	// DEBUG 0x2	  
+    s.schedule (a->target_, p, jitter(DSDV_BROADCAST_JITTER, a->be_random_)); fprintf(fp, "\n line 243");
+    
+    a->lasttup_ = now; // even if we got a full update, it still counts
+    // for our last triggered update time
+  }
+    
+    // free this event
+    for (a->table_->InitLoop (); (prte = a->table_->NextLoop ());)
+      if (prte->trigger_event && prte->trigger_event == e)
+        {
+  	prte->trigger_event = 0;
+  	delete e;
+        }
+
+    fclose(fp);
 }
 
 void
 DSDV_Agent::cancelTriggersBefore(Time t)
-  // Cancel any triggered events scheduled to take place *before* time
-  // t (exclusive)
+  // Cancel any triggered events
+  // t (exclusive)scheduled to take place *before* time
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n\nDSDV_Agent::cancelTriggersBefore\n");
+  //fprintf(fp, "my address : %d \n", myaddr_);
+  
   rtable_ent *prte;
   Scheduler & s = Scheduler::instance ();
-  double now = s.clock ();
-
-  speed_node[myaddr_] = node_->speed();
-  if(speed_node[myaddr_]>=25){
-    perup_node[myaddr_]= 5;
-    minup_node[myaddr_]= 2;
-  }
-  else {
-    perup_node[myaddr_]= 15;
-    minup_node[myaddr_]= 3;
-  }
-
-  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
 
   for (table_->InitLoop (); (prte = table_->NextLoop ());)
     if (prte->trigger_event && prte->trigger_event->time_ < t)
       {
 	      //DEBUG
+        fprintf(fp, "(%d) cancel event \n",myaddr_);
 	      //printf("(%d) cancel event %x\n",myaddr_,prte->trigger_event);
 	s.cancel(prte->trigger_event);
 	delete prte->trigger_event;
@@ -284,32 +296,38 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
   // if no triggered update already pending, make one so
 {
   FILE *fp = fopen("dsdv.log","a+");
-  fprintf(fp, "\n\nDSDV_Agent::needTriggeredUpdate\n");
+  fprintf(fp, "\n\nDSDV_Agent::needTriggeredUpdate\n Jika tidak ada triggered update yg tertunda, tetangga udah ga ada update lagi\n");
+  
   Scheduler & s = Scheduler::instance();
   Time now = Scheduler::instance().clock();
-
+  double speed;
+  speed = node_->speed();
   speed_node[myaddr_] = node_->speed();
   if(speed_node[myaddr_]>=25){
     perup_node[myaddr_]= 5;
     minup_node[myaddr_]= 2;
   }
-  else {
-    perup_node[myaddr_]= 15;
+   else {
+  	perup_node[myaddr_]= 15;
     minup_node[myaddr_]= 3;
   }
 
-  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
+  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f ,perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
 
   assert(t >= now);
 
-  if (prte->trigger_event) 
+  if (prte->trigger_event){
+    fprintf(fp, "membatalkan semua trigger event\n");
     s.cancel(prte->trigger_event);
-  else
+  }
+  else {
     prte->trigger_event = new Event;
+  }
   //DEBUG
   //printf("(%d)..scheduling trigger-update with event %x\n",myaddr_,prte->trigger_event);
+  //fprintf(fp, "my address : (%d)..scheduling trigger-update with (prte->trigger_event) event \n",myaddr_);
   s.schedule(trigger_handler, prte->trigger_event, t - now);
-
+  fprintf(fp, "penjadwalan trigger update\n");
   fclose(fp);
 }
 
@@ -318,50 +336,64 @@ DSDV_Agent::helper_callback (Event * e)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n \n DSDV_Agent::helper_callback\n");
-  Scheduler & s = Scheduler::instance ();
-  double now = s.clock ();
-  rtable_ent *prte;
-  rtable_ent *pr2;
-  int update_type;	 // we want periodic (=1) or triggered (=0) update?
-  //DEBUG
-  //printf("Triggered handler on 0x%08x\n", e);
 
+  double speed;
+  speed = node_->speed();
   speed_node[myaddr_] = node_->speed();
   if(speed_node[myaddr_]>=25){
     perup_node[myaddr_]= 5;
     minup_node[myaddr_]= 2;
   }
   else {
-    perup_node[myaddr_]= 15;
+  	perup_node[myaddr_]= 15;
     minup_node[myaddr_]= 3;
   }
+
+  
+  Scheduler & s = Scheduler::instance ();
+  double now = s.clock ();
+  rtable_ent *prte;
+  rtable_ent *pr2;
+  int update_type;	 // we want periodic (=1) or triggered (=0) update? // disini tipe update 1 kalo periodic , 0 kalo trigered
+  //DEBUG
+  //printf("Triggered handler on 0x%08x\n", e);
+  //fprintf(fp, "Triggered handler \n");
+
   fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
 
 
-  // Check for periodic callback
-  if (periodic_callback_ && e == periodic_callback_)
+  // Check for periodic callback. Kayaknya disini yang cek scra periodik untuk update
+  if (periodic_callback_ && e == periodic_callback_)// jika update secara periodik, eventny periodic
     {
-      update_type = 1;
+      fprintf(fp, "\n periodic_callback\n");
+      update_type = 1; // tipe update periodik
       Packet *p = makeUpdate(/*in-out*/update_type);
+
       if (verbose_)
-	{
-	  trace ("VPC %.5f _%d_", now, myaddr_);
-	  tracepkt (p, now, myaddr_, "PU");
-	}
+    	{
+        //fprintf(fp, "Jika update krn trigger \n");
+    	  trace ("VPC %.5f _%d_", now, myaddr_);
+    	  tracepkt (p, now, myaddr_, "PU");
+
+        //fprintf(fp, "VPC %.5f _%d_", now, myaddr_);
+    	}
 
       
       if (p) {
+        //fprintf(fp, "Jika update krn periodik \n");
 	      assert (!HDR_CMN (p)->xmit_failure_);	// DEBUG 0x2
 	      // send out update packet jitter to avoid sync
 	      //DEBUG
 	      //printf("(%d)..sendout update pkt (periodic=%d)\n",myaddr_,update_type);
+        //fprintf(fp, "kayaknya ini broadcast : (myaddr_: %d)..sendout update pkt (periodic=%d)\n",myaddr_,update_type);
 	      s.schedule (target_, p, jitter(DSDV_BROADCAST_JITTER, be_random_));
       }
       
       // put the periodic update sending callback back onto the 
       // the scheduler queue for next time....
       s.schedule (helper_, periodic_callback_, 
-		  perup_node[myaddr_] * (0.75 + jitter (0.25, be_random_)));
+		  perup_ * (0.75 + jitter (0.25, be_random_)));
+      fprintf(fp, "meletakkan periodic update ke queue untuk waktu selanjutnya \n");
 
       // this will take the place of any planned triggered updates
       lasttup_ = now;
@@ -378,23 +410,26 @@ DSDV_Agent::helper_callback (Event * e)
   // Note that in the if we don't touch the changed_at time, so that when
   // wst is computed, it doesn't consider the infinte metric the best
   // one at that sequence number.
+  // Disini memperbaiki tabel routing : ketika terjadi loop maka btutuh trigerred update
   if (prte)
-	  {
-      if (verbose_)
-	{
-	  trace ("VTO %.5f _%d_ %d->%d", now, myaddr_, myaddr_, prte->dst);
-	  /*	  trace ("VTO %.5f _%d_ trg_sch %x on sched %x time %f", now, myaddr_, 
-		 trigupd_scheduled, 
-		 trigupd_scheduled ? s.lookup(trigupd_scheduled->uid_) : 0,
-		 trigupd_scheduled ? trigupd_scheduled->time_ : 0); */
-	}
-      
-      for (table_->InitLoop (); (pr2 = table_->NextLoop ()); )
-	{
-	  if (pr2->hop == prte->dst && pr2->metric != BIG)
+  {
+    if (verbose_)
+  	{
+  	  trace ("VTO %.5f _%d_ %d->%d", now, myaddr_, myaddr_, prte->dst);
+      //fprintf(fp, "VTO now: %.5f myaddr_: _%d_ source: %d->destination: %d \n", now, myaddr_, myaddr_, prte->dst);
+  	  /*	  trace ("VTO %.5f _%d_ trg_sch %x on sched %x time %f", now, myaddr_, 
+  		 trigupd_scheduled, 
+  		 trigupd_scheduled ? s.lookup(trigupd_scheduled->uid_) : 0,
+  		 trigupd_scheduled ? trigupd_scheduled->time_ : 0); */
+  	}
+    
+    for (table_->InitLoop (); (pr2 = table_->NextLoop ()); )
+  	{
+  	  if (pr2->hop == prte->dst && pr2->metric != BIG)
 	    {
 	      if (verbose_)
-		trace ("VTO %.5f _%d_ marking %d", now, myaddr_, pr2->dst);
+		    trace ("VTO %.5f _%d_ marking %d", now, myaddr_, pr2->dst);
+        //fprintf(fp, "VTO %.5f _%d_ marking %d \n", now, myaddr_, pr2->dst);
 	      pr2->metric = BIG;
 	      pr2->advertise_ok_at = now;
 	      pr2->advert_metric = true;
@@ -403,13 +438,14 @@ DSDV_Agent::helper_callback (Event * e)
 	      // And we have routing info to propogate.
 	      //DEBUG
 	      //printf("(%d)..we have routing info to propagate..trigger update for dst %d\n",myaddr_,pr2->dst);
+        //fprintf(fp, "(%d)..we have routing info to propagate..trigger update for dst %d\n",myaddr_,pr2->dst);
 	      needTriggeredUpdate(pr2, now);
 	    }
-	}
+  	}
+    // OK the timeout expired, so we'll free it. No dangling pointers.
+    prte->timeout_event = 0;    
+  }
 
-      // OK the timeout expired, so we'll free it. No dangling pointers.
-      prte->timeout_event = 0;    
-    }
   else 
     { // unknown event on  queue
       fprintf(stderr,"DFU: unknown queue event\n");
@@ -427,6 +463,7 @@ DSDV_Agent::lost_link (Packet *p)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "DSDV_Agent::lost_link\n");
+  
   hdr_cmn *hdrc = HDR_CMN (p);
   rtable_ent *prte = table_->GetEntry (hdrc->next_hop_);
 
@@ -437,6 +474,8 @@ DSDV_Agent::lost_link (Packet *p)
 
   //DEBUG
   //printf("(%d)..Lost link..\n",myaddr_);
+  //fprintf(fp, "(%d)..Lost link..\n",myaddr_);
+
   if (verbose_ && hdrc->addr_type_ == NS_AF_INET)
     trace("VLL %.8f %d->%d lost at %d",
     Scheduler::instance().clock(),
@@ -469,6 +508,8 @@ DSDV_Agent::lost_link (Packet *p)
 
   // Queue these packets up...
   recv(p, 0);
+  
+
 
 #if 0
   while (p2 = ((PriQueue *) target_)->filter (prte->dst))
@@ -496,7 +537,7 @@ DSDV_Agent::lost_link (Packet *p)
     }
 #endif
 
-fclose(fp);
+  fclose(fp);
 }
 
 static void 
@@ -658,21 +699,24 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n\nDSDV_Agent::updateRoute\n");
-
+  
   int negvalue = -1;
   assert(new_rte);
 
   Time now = Scheduler::instance().clock();
-
+  double speed;
+  speed = node_->speed();
   speed_node[myaddr_] = node_->speed();
   if(speed_node[myaddr_]>=25){
     perup_node[myaddr_]= 5;
     minup_node[myaddr_]= 2;
   }
   else {
-    perup_node[myaddr_]= 15;
+  	perup_node[myaddr_]= 15;
     minup_node[myaddr_]= 3;
   }
+
+
   fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f , perup_node %f, minup_node %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
 
   char buf[1024];
@@ -685,16 +729,39 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
 	    old_rte ? old_rte->seqnum : negvalue,  new_rte->seqnum,
 	    old_rte ? old_rte->hop : -1,  new_rte->hop, 
 	    new_rte->advertise_ok_at);
+  /*
+  fprintf(fp, "new route table\n");
+  fprintf(fp, "ISI: new rte metric: %d , old_rte:%d , waktu: %.12lf from %d to %d , nxthp:%d , new_rte->seqnum:%d, new_rte->hop:%d \n", 
+    new_rte->metric, old_rte,now,myaddr_ , new_rte->dst, new_rte->hop,new_rte->seqnum, new_rte->hop);
+  */
+  fprintf (RTE, "\n\n D atau U : %c -- time %.5f -- my addr: _%d_ (new_rte->dst: %d,METRICS:%d->%d,SEQNUM %d->%d,HOP: %d->%d, advertise_ok_at: %f)\n",
+    (new_rte->metric != BIG 
+     && (!old_rte || old_rte->metric != BIG)) ? 'D' : 'U', 
+    now, myaddr_, new_rte->dst, 
+    old_rte ? old_rte->metric : negvalue, new_rte->metric, 
+    old_rte ? old_rte->seqnum : negvalue,  new_rte->seqnum,
+    old_rte ? old_rte->hop : -1,  new_rte->hop, 
+    new_rte->advertise_ok_at);
 
   table_->AddEntry (*new_rte);
   //printf("(%d),Route table updated..\n",myaddr_);
-  if (trace_wst_)
+  //fprintf(fp, "(%d),MY Route table updated..\n",myaddr_);
+  fprintf(RTE,"(my address : %d),Route table updated..\n",myaddr_);
+  fprintf (RTE,"VWST now:%.12lf frm %d to %d wst %.12lf nxthp %d [of metric %d]\n",now, myaddr_, new_rte->dst, new_rte->wst, new_rte->hop, new_rte->metric);
+
+  if (trace_wst_){
     trace ("VWST %.12lf frm %d to %d wst %.12lf nxthp %d [of %d]",
 	   now, myaddr_, new_rte->dst, new_rte->wst, new_rte->hop, 
 	   new_rte->metric);
-  if (verbose_)
-    trace ("VS%s", buf);
+  
+  //fprintf(fp, "isinya WST (settling time): %.12lf,from my_addr : %d to dest :%d, new_rte->wst %.12lf new_rte->hop %d, new_rte->metric:%d \n" , now, myaddr_ , new_rte->dst, new_rte->wst,new_rte->hop,new_rte->metric);
+  }
 
+  if (verbose_) {
+    trace ("VS%s", buf);
+    //fprintf(fp, "Masuk Verbose --> brrti trigger update VS%s", buf);
+  //fprintf(fp, "ISI buf VS%s", buf);
+  }
   fclose(fp);
 }
 
@@ -703,70 +770,86 @@ DSDV_Agent::processUpdate (Packet * p)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n\nDSDV_Agent::processUpdate\n");
-  hdr_ip *iph = HDR_IP(p);
-  Scheduler & s = Scheduler::instance ();
-  double now = s.clock ();
-  
-  // it's a dsdv packet
-  int i;
-  unsigned char *d = p->accessdata ();
-  unsigned char *w = d + 1;
-  rtable_ent rte;		// new rte learned from update being processed
-  rtable_ent *prte;		// ptr to entry *in* routing tbl
-
-
+  fprintf(fp, "ini fungsi untuk update RoutingTable di setiap node, menggunakan algoritma djikstra\n");
+  double speed;
+  speed = node_->speed();
   speed_node[myaddr_] = node_->speed();
   if(speed_node[myaddr_]>=25){
     perup_node[myaddr_]= 5;
     minup_node[myaddr_]= 2;
   }
    else {
-    perup_node[myaddr_]= 15;
+  	perup_node[myaddr_]= 15;
     minup_node[myaddr_]= 3;
   }
+
+  
+  
+  hdr_ip *iph = HDR_IP(p);
+  Scheduler & s = Scheduler::instance ();
+  double now = s.clock ();
+
   fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
+  
+  // it's a dsdv packet
+  int i;
+  unsigned char *d = p->accessdata ();
+  unsigned char *w = d + 1;
+  rtable_ent rte;	fprintf(fp, "rte yg akan di update\n");	// new rte learned from update being processed
+  rtable_ent *prte; fprintf(fp, "pointer ke rte, buat nampung sementara\n");		// ptr to entry *in* routing tbl
 
   //DEBUG
-  //int src, dst;
-  //src = Address::instance().get_nodeaddr(iph->src());
-  //dst = Address::instance().get_nodeaddr(iph->dst());
-  //printf("Received DSDV packet from %d(%d) to %d(%d) [%d)]\n", src, iph->sport(), dst, iph->dport(), myaddr_);
+  // int src, dst;
+  // src = Address::instance().print_nodeaddr(iph->src());
+  // dst = Address::instance().print_nodeaddr(iph->dst());
+  // //printf("Received DSDV packet from %d(%d) to %d(%d) [%d)]\n", src, iph->sport(), dst, iph->dport(), myaddr_);
+  // fprintf(fp, "Received DSDV packet from %d(%d) to (%d) [%d)]\n", src, iph->sport(),  iph->dport(), myaddr_);
+  // fprintf(fp, "hop = iphsrc : %d \n", iph->src());
+  // fprintf(fp, "source port : %d \n", iph->sport());
+  // fprintf(fp, "dst: %d \n", iph->dst());
+  // fprintf(fp, "dst port : %d \n", iph->dport());
 
-  for (i = *d; i > 0; i--)
-    {
-      bool trigger_update = false;  // do we need to do a triggered update?
-      nsaddr_t dst;
-      prte = NULL;
+  for (i = *d; i > 0; i--) {
+    //fprintf(fp, "i ke - %d \n", i);
+    bool trigger_update = false;  // do we need to do a triggered update?
+    nsaddr_t dst;
+    prte = NULL;
 
-      dst = *(w++);
-      dst = dst << 8 | *(w++);
-      dst = dst << 8 | *(w++);
-      dst = dst << 8 | *(w++);
+    dst = *(w++); //fprintf(fp, "dst %d \n", dst);
+    dst = dst << 8 | *(w++); //fprintf(fp, "dst %d \n", dst);
+    dst = dst << 8 | *(w++); //fprintf(fp, "dst %d \n", dst);
+    dst = dst << 8 | *(w++); //fprintf(fp, "dst %d \n", dst);
 
-      if ((prte = table_->GetEntry (dst)))
-	{
-	  bcopy(prte, &rte, sizeof(rte));
-	}
-      else
-	{
-	  bzero(&rte, sizeof(rte));
-	}
+    if ((prte = table_->GetEntry (dst)))
+  	{
+  	  bcopy(prte, &rte, sizeof(rte));
+  	}    
+    else
+  	{
+  	  bzero(&rte, sizeof(rte));
+  	}
 
-      rte.dst = dst;
-      //rte.hop = iph->src();
-      rte.hop = Address::instance().get_nodeaddr(iph->saddr());
-      rte.metric = *(w++);
-      rte.seqnum = *(w++);
-      rte.seqnum = rte.seqnum << 8 | *(w++);
-      rte.seqnum = rte.seqnum << 8 | *(w++);
-      rte.seqnum = rte.seqnum << 8 | *(w++);
-      rte.changed_at = now;
-      if (rte.metric != BIG) rte.metric += 1;
+    rte.dst = dst; //fprintf(fp, "rte.dst : %d \n", rte.dst);
+    //rte.hop = iph->src();
+    rte.hop = Address::instance().get_nodeaddr(iph->saddr()); //fprintf(fp, "rte.hop : %d \n", rte.hop);
+    rte.metric = *(w++); //fprintf(fp, "rte.metric : %d \n", rte.metric);
+    rte.seqnum = *(w++); //fprintf(fp, "rte.seqnum : %d \n", rte.seqnum);
+    rte.seqnum = rte.seqnum << 8 | *(w++); //fprintf(fp, "rte.seqnum : %d \n", rte.seqnum);
+    rte.seqnum = rte.seqnum << 8 | *(w++); //fprintf(fp, "rte.seqnum : %d \n", rte.seqnum);
+    rte.seqnum = rte.seqnum << 8 | *(w++); //fprintf(fp, "rte.seqnum : %d \n", rte.seqnum);
+    rte.changed_at = now; //fprintf(fp, "rte.changed_at : %.5f \n", rte.changed_at);
+    //fprintf(fp, "Terlihat seq num nambah, tp ga melulu di update, dicount dulu bru update \n");
 
-      if (rte.dst == myaddr_)
-	{
-	  if (rte.metric == BIG && periodic_callback_)
-	    {
+    if (rte.metric != BIG){
+      // cari metric setiap destination
+      rte.metric += 1; 
+    } 
+
+    if (rte.dst == myaddr_){
+      // jika destinasi adalah diri sendiri
+  	  if (rte.metric == BIG && periodic_callback_){
+        // jika jarak tdk terjangkau, maka cancel periodic
+        fprintf(fp, "jika jarak tdk terjangkau, maka cancel periodic \n");
 	      // You have the last word on yourself...
 	      // Tell the world right now that I'm still here....
 	      // This is a CMU Monarch optimiziation to fix the 
@@ -774,17 +857,21 @@ DSDV_Agent::processUpdate (Packet * p)
 	      // that you don't exist described in the paper.
 	      s.cancel (periodic_callback_);
 	      s.schedule (helper_, periodic_callback_, 0);
-	    }
-	  continue;		// don't corrupt your own routing table.
+      }
+  	  continue;		// don't corrupt your own routing table.
+  	}
 
-	}
+    /**********  fill in meta data for new route ***********/
+    // If it's in the table, make it the same timeout and queue.
 
-      /**********  fill in meta data for new route ***********/
-      // If it's in the table, make it the same timeout and queue.
-      if (prte)
-	{ // we already have a route to this dst
-	  if (prte->seqnum == rte.seqnum)
-	    { // we've got an update with out a new squenece number
+    if (prte) { 
+      // we already have a route to this dst
+      //fprintf(fp, "sebelumnya kita sudah punya rute untuk ke destinasi dst \n");
+  	  if (prte->seqnum == rte.seqnum){
+        // fprintf(fp, "jika seq num sebelumnya = seq num saat ini, maka : \n");
+        // fprintf(fp, "maka kita update tanpa seq num baru \n");
+
+       // we've got an update with out a new squenece number
 	      // this update must have come along a different path
 	      // than the previous one, and is just the kind of thing
 	      // the weighted settling time is supposed to track.
@@ -792,9 +879,15 @@ DSDV_Agent::processUpdate (Packet * p)
 	      // this code is now a no-op left here for clarity -dam XXX
 	      rte.wst = prte->wst;
 	      rte.new_seqnum_at = prte->new_seqnum_at;
-	    }
-	  else 
-	    { // we've got a new seq number, end the measurement period
+        // fprintf(fp, "rte.wst %.5f detik ==", rte.wst);
+        // fprintf(fp, "prte->wst %.5f detik\n", prte->wst);
+        // fprintf(fp, "rte.new_seqnum_at %.5f detik\n", rte.new_seqnum_at);
+        // fprintf(fp, "prte->new_seqnum_at %.5f detik\n", prte->new_seqnum_at);
+      }
+
+  	  else { 
+        fprintf(fp, "seqnum tdk sama, seqnum baru\n");
+        // we've got a new seq number, end the measurement period
 	      // for wst over the course of the old sequence number
 	      // and update wst with the difference between the last
 	      // time we changed the route (which would be when the 
@@ -804,175 +897,206 @@ DSDV_Agent::processUpdate (Packet * p)
 	      // do we care if we've missed a sequence number, such
 	      // that we have a wst measurement period that streches over
 	      // more than a single sequence number??? XXX -dam 4/20/98
-	      rte.wst = alpha_ * prte->wst + 
-		(1.0 - alpha_) * (prte->changed_at - prte->new_seqnum_at);
-	      rte.new_seqnum_at = now;
-	    }
-	}
-      else
-	{ // inititallize the wst for the new route
-	  rte.wst = wst0_;
-	  rte.new_seqnum_at = now;
-	}
-	  
-      // Now that we know the wst_, we know when to update...
-      if (rte.metric != BIG && (!prte || prte->metric != BIG))
-	rte.advertise_ok_at = now + (rte.wst * 2);
-      else
-	rte.advertise_ok_at = now;
 
-      /*********** decide whether to update our routing table *********/
-      if (!prte)
-	{ // we've heard from a brand new destination
-	  if (rte.metric < BIG) 
-	    {
+	      rte.wst = alpha_ * prte->wst + (1.0 - alpha_) * (prte->changed_at - prte->new_seqnum_at);
+        //fprintf(fp, "rte.wst %.5f detik ==", rte.wst);
+	      rte.new_seqnum_at = now;
+        //fprintf(fp, "rte.new_seqnum_at %.5f detik\n", rte.new_seqnum_at);
+	    }
+    }
+
+    else { 
+      // inititallize the wst for the new route
+      //fprintf(fp, "Menginisialisasi settling time baru  default = 6 detik \n");
+      fprintf(fp, "dia tdk kenal node itu sebelumnya\n");
+  	  rte.wst = wst0_;
+  	  rte.new_seqnum_at = now;
+      // fprintf(fp, "rte.wst %.5f detik ==", rte.wst);
+      // fprintf(fp, "rte.new_seqnum_at %.5f detik\n", rte.new_seqnum_at);
+  	}
+  
+    // Now that we know the wst_, we know when to update...
+    //fprintf(fp, "Sekarang kita tau wst, kita tau kapan akan mengupdate\n");
+    if (rte.metric != BIG && (!prte || prte->metric != BIG)){
+      // fprintf(fp, "rte.advertise_ok_at %.5f detik\n", rte.advertise_ok_at);
+      rte.advertise_ok_at = now + (rte.wst * 2);
+    }
+
+    else{
+      rte.advertise_ok_at = now;
+    }
+
+    /*********** decide whether to update our routing table *********/
+    //fprintf(fp, "Memutuskan apakah update routing table\n");
+    if (!prte) { 
+      //fprintf(fp, "jika bukan previous rte\n");
+      // we've heard from a brand new destination
+      //fprintf(fp, "Menangkap tujuan baru\n");
+  	  if (rte.metric < BIG) {
+        //fprintf(fp, "jika rte.metric (%d) < BIG, maka true\n",rte.metric);
 	      rte.advert_metric = true;
 	      trigger_update = true;
-	    }
-	  updateRoute(prte,&rte);
-	}
-      else if ( prte->seqnum == rte.seqnum )
-	{ // stnd dist vector case
-	  if (rte.metric < prte->metric) 
-	    { // a shorter route!
-	      if (rte.metric == prte->last_advertised_metric)
-		{ // we've just gone back to a metric we've already advertised
-		  rte.advert_metric = false;
-		  trigger_update = false;
-		}
-	      else
-		{ // we're changing away from the last metric we announced
-		  rte.advert_metric = true;
-		  trigger_update = true;
-		}
-	      updateRoute(prte,&rte);
-	    }
-	  else
-	    { // ignore the longer route
-	    }
-	}
-      else if ( prte->seqnum < rte.seqnum )
-	{ // we've heard a fresher sequence number
-	  // we *must* believe its rt metric
-	  rte.advert_seqnum = true;	// we've got a new seqnum to advert
-	  if (rte.metric == prte->last_advertised_metric)
-	    { // we've just gone back to our old metric
-	      rte.advert_metric = false;
-	    }
-	  else
-	    { // we're using a metric different from our last advert
-	      rte.advert_metric = true;
-	    }
+      }
 
-	  updateRoute(prte,&rte);
+  	  updateRoute(prte,&rte);
+      fprintf(fp, "update rute lagi\n");
+  	}
 
-#ifdef TRIGGER_UPDATE_ON_FRESH_SEQNUM
-	  trigger_update = true;
-#else
-	  trigger_update = false;
-#endif
-	}
-      else if ( prte->seqnum > rte.seqnum )
-	{ // our neighbor has older sequnum info than we do
-	  if (rte.metric == BIG && prte->metric != BIG)
-	    { // we must go forth and educate this ignorant fellow
-	      // about our more glorious and happy metric
+    else if ( prte->seqnum == rte.seqnum ) { 
+        // stnd dist vector case
+        //fprintf(fp, "standart distance vektor\n");
+  	  if (rte.metric < prte->metric) { 
+        // a shorter route! 
+        //fprintf(fp, "rute yg lebih pendek\n");
+  	      
+        if (rte.metric == prte->last_advertised_metric) { 
+          // we've just gone back to a metric we've already advertised
+          //fprintf(fp, "kami baru saja kembali ke metric yg telah kami broadcast\n");
+    		  rte.advert_metric = false;
+    		  trigger_update = false;
+        }
+  	   
+        else { 
+          // we're changing away from the last metric we announced
+          //fprintf(fp, "kami beralih ke metric yg terakhir kami broadcast\n");
+    		  rte.advert_metric = true;
+    		  trigger_update = true;
+        }
+
+        updateRoute(prte,&rte);
+
+      }
+
+  	  else { 
+        // ignore the longer route
+        //fprintf(fp, "abaikan rute yg panjang\n"); 
+      }
+
+  	}
+
+    else if ( prte->seqnum < rte.seqnum ) { 
+      // we've heard a fresher sequence number
+  	  // we *must* believe its rt metric
+  	  rte.advert_seqnum = true;	// we've got a new seqnum to advert
+      //fprintf(fp, "Kami mendapat seq num baru untuk di broadcast \n");
+  	  if (rte.metric == prte->last_advertised_metric) { 
+        // we've just gone back to our old metric
+        //fprintf(fp, "Kami menggunakan metric kami yg lama\n");
+        rte.advert_metric = false;
+      }
+
+      else { 
+        // we're using a metric different from our last advert
+        //fprintf(fp, "Kami menggunakan metric yg berbeda dr trakhir broadcast \n");
+        rte.advert_metric = true;
+      }
+
+  	  updateRoute(prte,&rte); 
+      //fprintf(fp, "update rute\n");
+
+      #ifdef TRIGGER_UPDATE_ON_FRESH_SEQNUM
+      	  trigger_update = true;
+      #else
+      	  trigger_update = false;
+      #endif
+  	}
+
+    else if ( prte->seqnum > rte.seqnum ) { 
+      // our neighbor has older sequnum info than we do
+  	  if (rte.metric == BIG && prte->metric != BIG) { 
+        // we must go forth and educate this ignorant fellow
+        // about our more glorious and happy metric
 	      prte->advertise_ok_at = now;
 	      prte->advert_metric = true;
 	      // directly schedule a triggered update now for 
 	      // prte, since the other logic only works with rte.*
 	      needTriggeredUpdate(prte,now);
-	    }
-	  else
-	    { // we don't care about their stale info
-	    }
-	}
-      else
-	{
-	  fprintf(stderr,
-		  "%s DFU: unhandled adding a route entry?\n", __FILE__);
-	  abort();
-	}
-      
-      if (trigger_update)
-	{
-	  prte = table_->GetEntry (rte.dst);
-	  assert(prte != NULL && prte->advertise_ok_at == rte.advertise_ok_at);
-	  needTriggeredUpdate(prte, prte->advertise_ok_at);
-	}
+      }
 
-      // see if we can send off any packets we've got queued
-      if (rte.q && rte.metric != BIG)
-	{
-	  Packet *queued_p;
-	  while ((queued_p = rte.q->deque()))
-	  // XXX possible loop here  
-	  // while ((queued_p = rte.q->deque()))
-	  // Only retry once to avoid looping
-	  // for (int jj = 0; jj < rte.q->length(); jj++){
-	  //  queued_p = rte.q->deque();
-	    recv(queued_p, 0); // give the packets to ourselves to forward
-	  // }
-	  delete rte.q;
-	  rte.q = 0;
-	  table_->AddEntry(rte); // record the now zero'd queue
-	}
-    } // end of all destination mentioned in routing update packet
+  	  else { 
+      // we don't care about their stale info
+      }
+  	}
+
+    else {
+  	  fprintf(stderr,
+  		  "%s DFU: unhandled adding a route entry?\n", __FILE__);
+  	  abort();
+  	}
+    
+    if (trigger_update) {
+  	  prte = table_->GetEntry (rte.dst);
+  	  assert(prte != NULL && prte->advertise_ok_at == rte.advertise_ok_at);
+  	  needTriggeredUpdate(prte, prte->advertise_ok_at);
+  	}
+
+    // see if we can send off any packets we've got queued
+    if (rte.q && rte.metric != BIG) {
+  	  Packet *queued_p;
+  	  while ((queued_p = rte.q->deque())) {
+        recv(queued_p, 0); // give the packets to ourselves to forward
+      }
+  	  // XXX possible loop here  
+  	  // while ((queued_p = rte.q->deque()))
+  	  // Only retry once to avoid looping
+  	  // for (int jj = 0; jj < rte.q->length(); jj++){
+  	  //  queued_p = rte.q->deque();
+  	    
+        fprintf(fp, "recv : give the packets to ourselves to forward\n");
+  	  // }
+  	  delete rte.q;
+  	  rte.q = 0;
+  	  table_->AddEntry(rte); // record the now zero'd queue
+  	}
+  } // end of all destination mentioned in routing update packet
 
   // Reschedule the timeout for this neighbor
   prte = table_->GetEntry(Address::instance().get_nodeaddr(iph->saddr()));
-  if (prte)
-    {
-      if (prte->timeout_event)
-	s.cancel (prte->timeout_event);
-      else
-	{
-	  prte->timeout_event = new Event ();
-	}
-      
-      s.schedule (helper_, prte->timeout_event, (min_update_periods_ * perup_node[myaddr_]));
-      fprintf(fp, "minup : %f \n", minup_node[myaddr_]);
-      fprintf(fp, "minup as: %f \n", min_update_periods_);
-      fprintf(fp, "kali as %f\n", min_update_periods_ * perup_node[myaddr_]);
-      fprintf(fp, "kali %f\n", minup_node[myaddr_] * perup_node[myaddr_]);
+  if (prte) {
+    if (prte->timeout_event) {
+      s.cancel (prte->timeout_event);
+    }
 
+    else {
+      prte->timeout_event = new Event ();
     }
-  else
-    { // If the first thing we hear from a node is a triggered update
-      // that doesn't list the node sending the update as the first
-      // thing in the packet (which is disrecommended by the paper)
-      // we won't have a route to that node already.  In order to timeout
-      // the routes we just learned, we need a harmless route to keep the
-      // timeout metadata straight.
-      
-      // Hi there, nice to meet you. I'll make a fake advertisement
-      bzero(&rte, sizeof(rte));
-      rte.dst = Address::instance().get_nodeaddr(iph->saddr());
-      rte.hop = Address::instance().get_nodeaddr(iph->saddr());
-      rte.metric = 1;
-      rte.seqnum = 0;
-      rte.advertise_ok_at = now + 604800;	// check back next week... :)
-      
-      rte.changed_at = now;
-      rte.new_seqnum_at = now;
-      rte.wst = wst0_;
-      rte.timeout_event = new Event ();
-      rte.q = 0;
-      
-      updateRoute(NULL, &rte);
-      fprintf(fp, "minup : %f \n", minup_node[myaddr_]);
-      fprintf(fp, "minup as: %f \n", min_update_periods_);
-      s.schedule(helper_, rte.timeout_event, (min_update_periods_ * perup_node[myaddr_]));
-    }
+    fprintf(fp, "penjadwalan timeout untuk tetangga ini\n");
+    s.schedule (helper_, prte->timeout_event, min_update_periods_ * perup_);
+  }
+
+  else { 
+    // If the first thing we hear from a node is a triggered update
+    // that doesn't list the node sending the update as the first
+    // thing in the packet (which is disrecommended by the paper)
+    // we won't have a route to that node already.  In order to timeout
+    // the routes we just learned, we need a harmless route to keep the
+    // timeout metadata straight.
+    
+    // Hi there, nice to meet you. I'll make a fake advertisement
+    bzero(&rte, sizeof(rte));
+    rte.dst = Address::instance().get_nodeaddr(iph->saddr());
+    rte.hop = Address::instance().get_nodeaddr(iph->saddr());
+    rte.metric = 1;
+    rte.seqnum = 0;
+    rte.advertise_ok_at = now + 604800;	// check back next week... :)
+    
+    rte.changed_at = now;
+    rte.new_seqnum_at = now;
+    rte.wst = wst0_;
+    rte.timeout_event = new Event ();
+    rte.q = 0;
+    
+    updateRoute(NULL, &rte);
+    s.schedule(helper_, rte.timeout_event, min_update_periods_ * perup_);
+  }
   
   /*
    * Freeing a routing layer packet --> don't need to
    * call drop here.
    */
   Packet::free (p);
-
-
   fclose(fp);
+
 }
 
 int 
@@ -999,7 +1123,7 @@ DSDV_Agent::forwardPacket (Packet * p)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n\nDSDV_Agent::forwardPacket\n");
-
+  fprintf(fp, "ini fungsi forward paket \n");
   hdr_ip *iph = HDR_IP(p);
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
@@ -1007,42 +1131,60 @@ DSDV_Agent::forwardPacket (Packet * p)
   int dst;
   rtable_ent *prte;
 
-  speed_node[myaddr_] = node_->speed();
-  if(speed_node[myaddr_]>=25){
-    perup_node[myaddr_]= 5;
-    minup_node[myaddr_]= 2;
-  }
-  else {
-    perup_node[myaddr_]= 15;
-    minup_node[myaddr_]= 3;
-  }
-  fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
-
+  // double xpos;
+  // double ypos;
+  // double zpos;
+  // double speed;
+  // double radius;
   
-  // We should route it.
-  //printf("(%d)-->forwardig pkt\n",myaddr_);
+  // // We should route it.
+  // //printf("(%d)-->forwardig pkt\n",myaddr_);
+  // fprintf(fp, "sebaiknya merutekan itu \n");
+  // fprintf(fp, "(%d)-->forwardig pkt\n", myaddr_);
+
+  // xpos = node_->X();
+  // ypos = node_->Y();
+  // zpos = node_->Z();
+  // speed = node_->speed();
+  // radius = node_->radius();
+  // fprintf(fp, "x= %f, y = %f, z= %f \n", xpos, ypos, zpos);
+  // fprintf(fp, "Speed : %f radius: %f \n", speed, radius);
   // set direction of pkt to -1 , i.e downward
+  //fprintf(fp, "DISINI ADA direction, set direction to downward \n");
   hdrc->direction() = hdr_cmn::DOWN;
 
   // if the destination is outside mobilenode's domain
   // forward it to base_stn node
   // Note: pkt is not buffered if route to base_stn is unknown
 
-  dst = Address::instance().get_nodeaddr(iph->daddr());  
+  //fprintf(fp, "Jika destination diluar domain node, forward ke base station node, paket tidak di buffer jika rute ke base station tidak diketahui \n");
+
+  dst = Address::instance().get_nodeaddr(iph->daddr());
+  fprintf(fp, "destination : %d \n",dst);  
   if (diff_subnet(iph->daddr())) {
 	   prte = table_->GetEntry (dst);
-	  if (prte && prte->metric != BIG) 
-		  goto send;
+	  if (prte && prte->metric != BIG)
+    {
+      goto send;
+      //fprintf(fp, "jika ada di previous rte dan metric previous rte tidak BIG maka kirim \n");
+    } 
+		  
 	  
 	  //int dst = (node_->base_stn())->address();
 	  dst = node_->base_stn();
+    
+    //fprintf(fp, "BASE station : %d \n",dst);
 	  prte = table_->GetEntry (dst);
 	  if (prte && prte->metric != BIG) 
+    {
 		  goto send;
+      fprintf(fp, "kirim ke base_stn \n");
+    }
 	  
 	  else {
 		  //drop pkt with warning
 		  fprintf(stderr, "warning: Route to base_stn not known: dropping pkt\n");
+      //fprintf(fp, "drop paket dg warning \n");
 		  Packet::free(p);
 		  return;
 	  }
@@ -1058,11 +1200,13 @@ DSDV_Agent::forwardPacket (Packet * p)
   if (prte && prte->metric != BIG)
     {
        //printf("(%d)-have route for dst\n",myaddr_);
+      //fprintf(fp, "(%d)-have route for dst %d \n",myaddr_ , dst);
        goto send;
     }
   else if (prte)
     { /* must queue the packet */
 	    //printf("(%d)-no route, queue pkt\n",myaddr_);
+      //fprintf(fp, "(%d)-no route ke %d, queue pkt\n",myaddr_ , dst);
       if (!prte->q)
 	{
 	  prte->q = new PacketQueue ();
@@ -1070,16 +1214,21 @@ DSDV_Agent::forwardPacket (Packet * p)
 
       prte->q->enque(p);
 
-      if (verbose_)
-	trace ("VBP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_, iph->saddr(),
-	       iph->sport(), iph->daddr(), iph->dport());
-
+      if (verbose_){
+        //fprintf(fp, "Disini Masuk verbose \n");
+        trace ("VBP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_, iph->saddr(),
+         iph->sport(), iph->daddr(), iph->dport());
+        // fprintf(fp, "VBP now: %.5f myaddr:_%d_ source address:%d source port:%d -> destination address%d destination port:%d", now, myaddr_, iph->saddr(),
+        //  iph->sport(), iph->daddr(), iph->dport());
+      }
+	
       while (prte->q->length () > MAX_QUEUE_LENGTH)
 	      drop (prte->q->deque (), DROP_RTR_QFULL);
       return;
     }
   else
     { // Brand new destination
+      //fprintf(fp, "Brand new destination \n");
       rtable_ent rte;
       double now = s.clock();
       
@@ -1095,45 +1244,59 @@ DSDV_Agent::forwardPacket (Packet * p)
       rte.wst = wst0_;
       rte.timeout_event = 0;
 
+      //fprintf(fp, "rte.dst: %d, rte.hop : %d, rte.metric: %d,rte.seqnum : %d,rte.advertise_ok_at : %.5f,rte.changed_at: %.5f ,rte.new_seqnum_at: %.5f ,rte.wst : %.5f  \n",rte.dst ,rte.hop ,rte.metric,rte.seqnum ,rte.advertise_ok_at ,rte.changed_at ,rte.new_seqnum_at ,rte.wst );
+
       rte.q = new PacketQueue();
-      rte.q->enque(p);
+      rte.q->enque(p); //memasukkan ke queue
 	  
       assert (rte.q->length() == 1 && 1 <= MAX_QUEUE_LENGTH);
       table_->AddEntry(rte);
       
-      if (verbose_)
+      if (verbose_){
 	      trace ("VBP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_,
 		     iph->saddr(), iph->sport(), iph->daddr(), iph->dport());
+        // fprintf(fp, "Masuk verbose \n" );
+        // fprintf(fp, "VBP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_,
+        //  iph->saddr(), iph->sport(), iph->daddr(), iph->dport());
+      }
       return;
     }
 
 
  send:
-  hdrc->addr_type_ = NS_AF_INET;
-  hdrc->xmit_failure_ = mac_callback;
-  hdrc->xmit_failure_data_ = this;
-  if (prte->metric > 1)
+  //fprintf(fp, "Disini fungsi send \n");
+  hdrc->addr_type_ = NS_AF_INET; //fprintf(fp, "hdrc->addr_type_ :%d\n",hdrc->addr_type_  );
+  hdrc->xmit_failure_ = mac_callback; //fprintf(fp, "hdrc->xmit_failure_: %d\n", hdrc->xmit_failure_);
+  hdrc->xmit_failure_data_ = this; //fprintf(fp, "hdrc->xmit_failure_data_ %d\n", hdrc->xmit_failure_data_);
+  if (prte->metric > 1){
 	  hdrc->next_hop_ = prte->hop;
-  else
+    //fprintf(fp, "Jika metric previous rte lebih dr 1 maka : next_hop_ = %d \n",hdrc->next_hop_ );
+  }
+  else{
 	  hdrc->next_hop_ = dst;
-  if (verbose_)
-	  trace ("Routing pkts outside domain: \
-VFP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_, iph->saddr(),
-		 iph->sport(), iph->daddr(), iph->dport());  
-
-  assert (!HDR_CMN (p)->xmit_failure_ ||
-	  HDR_CMN (p)->xmit_failure_ == mac_callback);
-  target_->recv(p, (Handler *)0);
-  return;
-
-fclose(fp);
+    fprintf(fp, "Else maka : next_hop_ = %d \n",hdrc->next_hop_ );
+  }
+  if (verbose_){
+	  trace ("Routing pkts outside domain: VFP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_, iph->saddr(),
+		 iph->sport(), iph->daddr(), iph->dport());
+     // fprintf(fp, "Routing pkts outside domain: VFP %.5f _%d_ %d:%d -> %d:%d", now, myaddr_, iph->saddr(),
+     // iph->sport(), iph->daddr(), iph->dport());    
+    assert (!HDR_CMN (p)->xmit_failure_ ||
+  	  HDR_CMN (p)->xmit_failure_ == mac_callback);
+    target_->recv(p, (Handler *)0);
+    //fprintf(fp, "Target received paket\n" );
+    return;
+  }
+  fclose(fp);
 }
 
 void 
 DSDV_Agent::sendOutBCastPkt(Packet *p)
 {
   FILE *fp = fopen("dsdv.log","a+");
-  fprintf(fp, "\n\nDSDV_Agent::sendOutBCastPkt\n");
+  fprintf(fp, "DSDV_Agent::sendOutBCastPkt\n");
+  fprintf(fp, "ini fungsi broadcast paket\n");
+  
   Scheduler & s = Scheduler::instance ();
   // send out bcast pkt with jitter to avoid sync
   s.schedule (target_, p, jitter(DSDV_BROADCAST_JITTER, be_random_));
@@ -1146,24 +1309,40 @@ DSDV_Agent::recv (Packet * p, Handler *)
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n\nDSDV_Agent::recv\n");
-  hdr_ip *iph = HDR_IP(p);
-  hdr_cmn *cmh = HDR_CMN(p);
-  int src = Address::instance().get_nodeaddr(iph->saddr());
+  fprintf(fp, "myaddr_: %d\n", myaddr_);
+  // fprintf(fp, "fungsi ketika menerima paket \n");
+  // float xpos = node_->X();
+  // float ypos = node_->Y();
+  // float speed = node_->speed();
+  // float radius = node_->radius();
+  
+  // fprintf(fp, "x= %f, y = %f \n", xpos, ypos);
+  // fprintf(fp, "Speed : %.5f radius: %f \n", speed, radius);
+  // fprintf(fp, "perup umum %.5f \n",  perup_ );
 
+  double speed;
+  speed = node_->speed();
   speed_node[myaddr_] = node_->speed();
   if(speed_node[myaddr_]>=25){
     perup_node[myaddr_]= 5;
     minup_node[myaddr_]= 2;
   }
   else {
-    perup_node[myaddr_]= 15;
+  	perup_node[myaddr_]= 15;
     minup_node[myaddr_]= 3;
   }
+
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
+
   fprintf(fp, "time: %.5f, my addr: %d, speed : %.15f perup: %f minup: %f \n",now , myaddr_, speed_node[myaddr_], perup_node[myaddr_], minup_node[myaddr_] );
 
+  
+  hdr_ip *iph = HDR_IP(p);
+  hdr_cmn *cmh = HDR_CMN(p);
 
+  int src = Address::instance().get_nodeaddr(iph->saddr());
+  int dest2 = Address::instance().get_nodeaddr(iph->daddr());
   /*
    *  Must be a packet I'm originating...
    */
@@ -1171,14 +1350,18 @@ DSDV_Agent::recv (Packet * p, Handler *)
     /*
      * Add the IP Header
      */
+     fprintf(fp, "jika src = %d adalah ipku %d dan forward \n", src, myaddr_);
+    // fprintf(fp, "Add the IP header\n");
     cmh->size() += IP_HDR_LEN;    
     iph->ttl_ = IP_DEF_TTL;
+    //fprintf(fp, "TTL %d \n", iph->ttl_);
   }
   /*
    *  I received a packet that I sent.  Probably
    *  a routing loop.
    */
   else if(src == myaddr_) {
+    fprintf(fp, "jika src == my addr atau bisa jg disebut menerima paket yg bru saja saya kirim, ini mungkin terjadi loop route maka drop\n");
     drop(p, DROP_RTR_ROUTE_LOOP);
     return;
   }
@@ -1189,14 +1372,20 @@ DSDV_Agent::recv (Packet * p, Handler *)
     /*
      *  Check the TTL.  If it is zero, then discard.
      */
+    // fprintf(fp, "Saya for paket \n");
+    // fprintf(fp, "my addr : %d source : %d \n",myaddr_, src);
+    // fprintf(fp, "Cek ttl = : %d \n", iph->ttl_ );
     if(--iph->ttl_ == 0) {
       drop(p, DROP_RTR_TTL);
+      //fprintf(fp, "Cek TTL , kalo ttl 0 , maka drop. Berarti tidak menemukan rute \n");
       return;
     }
   }
   
   if ((src != myaddr_) && (iph->dport() == ROUTER_PORT))
     {
+      // fprintf(fp, "kalo sumbernya bukan dr ipku (%d) dan port di ip headernya = router port maka update paket \n", myaddr_);
+      // fprintf(fp, "source : %d:%d \n", src, iph->dport() );
 	    // XXX disable this feature for mobileIP where
 	    // the MH and FA (belonging to diff domains)
 	    // communicate with each other.
@@ -1206,24 +1395,31 @@ DSDV_Agent::recv (Packet * p, Handler *)
 	    // drop(p, DROP_OUTSIDE_SUBNET);
 	    //else    
 	    processUpdate(p);
+      //fprintf(fp, "update rute \n");
     }
   else if (iph->daddr() == ((int)IP_BROADCAST) &&
 	   (iph->dport() != ROUTER_PORT)) 
 	  {
+      fprintf(fp, "dest : %d:%d \n", dest2, iph->dport() );
 	     if (src == myaddr_) {
+        //fprintf(fp, "dest : %d:%d \n", dest2, iph->dport() );
 		     // handle brdcast pkt
 		     sendOutBCastPkt(p);
+         //fprintf(fp, "broadcast paket \n");
 	     }
 	     else {
 		     // hand it over to the port-demux
 		    port_dmux_->recv(p, (Handler*)0);
+        //fprintf(fp, "receive\n");
 	     }
 	  }
   else 
     {
 	    forwardPacket(p);
+      //fprintf(fp, "forward paket \n");
     }
-  fclose(fp);
+
+    fclose(fp);
 }
 
 static class DSDVClass:public TclClass
@@ -1238,6 +1434,8 @@ static class DSDVClass:public TclClass
   }
 } class_dsdv;
 
+// setiap DSDV agent punya atribut ini
+
 DSDV_Agent::DSDV_Agent (): Agent (PT_MESSAGE), ll_queue (0), seqno_ (0), 
   myaddr_ (0), subnet_ (0), node_ (0), port_dmux_(0),
   periodic_callback_ (0), be_random_ (1), 
@@ -1245,6 +1443,8 @@ DSDV_Agent::DSDV_Agent (): Agent (PT_MESSAGE), ll_queue (0), seqno_ (0),
   alpha_ (0.875),  wst0_ (6), perup_ (15), 
   min_update_periods_ (3)	// constants
  {
+
+ 	RTE=fopen("rte.txt","w");
   table_ = new RoutingTable ();
   helper_ = new DSDV_Helper (this);
   trigger_handler = new DSDVTriggerHandler(this);
@@ -1260,7 +1460,6 @@ DSDV_Agent::DSDV_Agent (): Agent (PT_MESSAGE), ll_queue (0), seqno_ (0),
   bind ("trace_wst_", &trace_wst_);
   //DEBUG
   address = 0;
- 
 }
 
 void
@@ -1268,27 +1467,57 @@ DSDV_Agent::startUp()
 {
   FILE *fp = fopen("dsdv.log","a+");
   fprintf(fp, "\n \nDSDV_Agent::startUp \n");
- Time now = Scheduler::instance().clock();
+
+  Time now = Scheduler::instance().clock();
 
   subnet_ = Address::instance().get_subnetaddr(myaddr_);
   //DEBUG
+
   address = Address::instance().print_nodeaddr(myaddr_);
   //printf("myaddress: %d -> %s\n",myaddr_,address);
-  
-  rtable_ent rte;
-  bzero(&rte, sizeof(rte));
-
+  double speed;
+  speed = node_->speed();
+  //fprintf(fp, "Speed : %f \n", speed);
   speed_node[myaddr_] = node_->speed();
   perup_node[myaddr_] = perup_ ;
   minup_node[myaddr_] = min_update_periods_;
   //fprintf(fp, "(myaddr: %d)\n", a->myaddr_);
   fprintf(fp, "time now = %.5f , myaddr: %d , speed : %.15f\n", myaddr_, now, speed_node[myaddr_] );
 
+  /*
+  double xpos;
+  double ypos;
+  
+  double radius;
+  
+  
+  xpos = node_->X();
+  ypos = node_->Y();
+  speed = node_->speed();
+  radius = node_->radius();
+  
+  fprintf(fp, "x= %f, y = %f \n", xpos, ypos);
+  fprintf(fp, "Speed : %f radius: %f \n", speed, radius);
+  fprintf(fp, "perup umum %.5f \n",  perup_ );
+  fprintf(fp, "time now = %.5f \n", now);
+  fprintf(fp, "myaddr: %d -> address : %s \n",myaddr_,address); // alamat nodenya 
+  */
+
+  rtable_ent rte; fprintf(fp, "inisialisasi routing tabel rte line 1426\n");
+  bzero(&rte, sizeof(rte)); // sama dengan memset, sebesar ukuran routing table
+  //fprintf(fp, "size routing table: %ld \n",sizeof(rte));
+  //fprintf(fp, "perup my addr %.5f \n",  rte.perup_ );
+
+  
+
+  // mengisi routing table
   rte.dst = myaddr_;
   rte.hop = myaddr_;
   rte.metric = 0;
   rte.seqnum = seqno_;
+  //fprintf(fp, "rte dest : %d, rte.hop: %d , rte sequence number: %d , metric : %d \n",rte.dst,rte.hop, rte.seqnum, rte.metric);
   seqno_ += 2;
+  //fprintf(fp, "setelah +2: %d \n",seqno_ );
 
   rte.advertise_ok_at = 0.0; // can always advert ourselves
   rte.advert_seqnum = true;
@@ -1300,13 +1529,17 @@ DSDV_Agent::startUp()
   
   rte.q = 0;		// Don't buffer pkts for self!
   
-  table_->AddEntry (rte);
-
-  // kick off periodic advertisments
-  periodic_callback_ = new Event ();
+  table_->AddEntry (rte); fprintf(fp, "dimasukkan ke rte line 1452\n"); //memasukkan ke tabel
+  /*
+  fprintf(fp, " rte.dst =%d , rte.hop=%d ,rte.metric=%d ,rte.seqnum=%d ,rte.advertise_ok_at=%.5f ,rte.advert_seqnum=%d ,rte.advert_metric=%d ,rte.changed_at=%.5f ,rte.new_seqnum_at= %.5f , rte.wst= %d , rte.timeout_event = %d \n",
+    rte.dst, rte.hop, rte.metric,rte.seqnum,rte.advertise_ok_at,rte.advert_seqnum, rte.advert_metric,rte.changed_at, rte.new_seqnum_at, rte.wst, rte.timeout_event);
+  fprintf(fp, "kick off periodic advertisments \n");
+  */
+  // kick off periodic advertisments --> Masuk ini
+  periodic_callback_ = new Event (); fprintf(fp, "new event periodic callback line 1459 \n");
   Scheduler::instance ().schedule (helper_, 
 				   periodic_callback_,
-				   jitter (DSDV_STARTUP_JITTER, be_random_));
+				   jitter (DSDV_STARTUP_JITTER, be_random_)); fprintf(fp, "memulai periodic callback line 1460");
 
   fclose(fp);
 }

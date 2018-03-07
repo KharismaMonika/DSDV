@@ -930,12 +930,7 @@ DSDV_Agent::processUpdate (Packet * p)
 	  prte->timeout_event = new Event ();
 	}
       
-      s.schedule (helper_, prte->timeout_event, (min_update_periods_ * perup_node[myaddr_]));
-      fprintf(fp, "minup : %f \n", minup_node[myaddr_]);
-      fprintf(fp, "minup as: %f \n", min_update_periods_);
-      fprintf(fp, "kali as %f\n", min_update_periods_ * perup_node[myaddr_]);
-      fprintf(fp, "kali %f\n", minup_node[myaddr_] * perup_node[myaddr_]);
-
+      s.schedule (helper_, prte->timeout_event, min_update_periods_ * perup_node[myaddr_]);
     }
   else
     { // If the first thing we hear from a node is a triggered update
@@ -960,9 +955,7 @@ DSDV_Agent::processUpdate (Packet * p)
       rte.q = 0;
       
       updateRoute(NULL, &rte);
-      fprintf(fp, "minup : %f \n", minup_node[myaddr_]);
-      fprintf(fp, "minup as: %f \n", min_update_periods_);
-      s.schedule(helper_, rte.timeout_event, (min_update_periods_ * perup_node[myaddr_]));
+      s.schedule(helper_, rte.timeout_event, min_update_periods_ * perup_node[myaddr_]);
     }
   
   /*

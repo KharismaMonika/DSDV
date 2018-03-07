@@ -220,7 +220,7 @@ DSDVTriggerHandler::handle(Event *e)
 	  //DEBUG
 	  //printf("we got a periodic update, though asked for trigg\n");
 	  s.schedule (a->helper_, a->periodic_callback_, 
-		      perup_node[a->myaddr_] * (0.75 + jitter (0.25, a->be_random_)));
+		      a->perup_ * (0.75 + jitter (0.25, a->be_random_)));
 	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
 	}
       else
@@ -361,7 +361,7 @@ DSDV_Agent::helper_callback (Event * e)
       // put the periodic update sending callback back onto the 
       // the scheduler queue for next time....
       s.schedule (helper_, periodic_callback_, 
-		  perup_node[myaddr_] * (0.75 + jitter (0.25, be_random_)));
+		  perup_ * (0.75 + jitter (0.25, be_random_)));
 
       // this will take the place of any planned triggered updates
       lasttup_ = now;
@@ -930,12 +930,7 @@ DSDV_Agent::processUpdate (Packet * p)
 	  prte->timeout_event = new Event ();
 	}
       
-      s.schedule (helper_, prte->timeout_event, (min_update_periods_ * perup_node[myaddr_]));
-      fprintf(fp, "minup : %f \n", minup_node[myaddr_]);
-      fprintf(fp, "minup as: %f \n", min_update_periods_);
-      fprintf(fp, "kali as %f\n", min_update_periods_ * perup_node[myaddr_]);
-      fprintf(fp, "kali %f\n", minup_node[myaddr_] * perup_node[myaddr_]);
-
+      s.schedule (helper_, prte->timeout_event, min_update_periods_ * perup_);
     }
   else
     { // If the first thing we hear from a node is a triggered update
@@ -960,9 +955,7 @@ DSDV_Agent::processUpdate (Packet * p)
       rte.q = 0;
       
       updateRoute(NULL, &rte);
-      fprintf(fp, "minup : %f \n", minup_node[myaddr_]);
-      fprintf(fp, "minup as: %f \n", min_update_periods_);
-      s.schedule(helper_, rte.timeout_event, (min_update_periods_ * perup_node[myaddr_]));
+      s.schedule(helper_, rte.timeout_event, min_update_periods_ * perup_);
     }
   
   /*
