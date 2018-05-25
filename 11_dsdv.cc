@@ -66,11 +66,45 @@ extern "C" {
    to send a triggered update?  If undef'd, we'll only trigger on
    routing metric changes */
 
+/* Percobaan Penyimpanan Data*/
+int count_node = 50; // 0 sampai 29
+float *speed_node = (float*) malloc (count_node * sizeof(float));
+double *perup_node = (double*) malloc (count_node * sizeof(double));
+double *minup_node = (double*) malloc (count_node * sizeof(double));
+
 // Returns a random number between 0 and max
 static inline double 
 jitter (double max, int be_random_)
 {
   return (be_random_ ? Random::uniform(max) : 0);
+}
+
+void save(int alamat, double speed, double perup_ori, double minup_ori){
+  FILE *fp = fopen("dsdv.log","a+");
+  unsigned int temp_perup = 40 - speed;
+  fprintf(fp, "\nCoba Save %d, speed : %.5lf ,temp_perup : %d\n", alamat, speed, temp_perup);
+  if(speed>25){
+    if (temp_perup > 1)
+    {
+      perup_node[alamat]= temp_perup;
+      minup_node[alamat]= 2;
+      fprintf(fp, "perup_node 1: %f minup_node: %f \n",perup_node[alamat], minup_node[alamat]);
+    }
+    else if (temp_perup < 1)
+    {
+      perup_node[alamat]= 1;
+      minup_node[alamat]= 2;
+      fprintf(fp, "perup_node 2: %f minup_node: %f \n",perup_node[alamat], minup_node[alamat]);
+    }
+
+  }
+  else {
+    perup_node[alamat]= perup_ori;
+    minup_node[alamat]= minup_ori;
+    fprintf(fp, "perup_node 3: %f minup_node: %f \n",perup_node[alamat], minup_node[alamat]);
+  }
+
+  fclose(fp);
 }
 
 void DSDV_Agent::
@@ -153,12 +187,18 @@ DSDVTriggerHandler::handle(Event *e)
 {
 	//DEBUG
 	//printf("(%d)-->triggered update with e=%x\n", a->myaddr_,e); 
+  FILE *fp = fopen("dsdv.log","a+");
+  fprintf(fp, "\n\nDSDVTriggerHandler::handle\n");
+  fprintf(fp, "perup1 handle %f\n", a->perup_);
 
   Scheduler & s = Scheduler::instance ();
   Time now = s.clock ();
   rtable_ent *prte;
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
   Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD;
+
+  //cek kecepatan dan save nilai
+  save(a->myaddr_, a->node_->speed(), a->perup_, a->min_update_periods_);
 
   for (a->table_->InitLoop(); (prte = a->table_->NextLoop());)
 	  if (prte->trigger_event == e) break;
@@ -185,8 +225,10 @@ DSDVTriggerHandler::handle(Event *e)
 	  s.cancel(a->periodic_callback_);
 	  //DEBUG
 	  //printf("we got a periodic update, though asked for trigg\n");
+    fprintf(fp, "perup handle %f\n", a->perup_);
+
 	  s.schedule (a->helper_, a->periodic_callback_, 
-		      a->perup_ * (0.75 + jitter (0.25, a->be_random_)));
+		      perup_node[a->myaddr_] * (0.75 + jitter (0.25, a->be_random_)));
 	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
 	}
       else
@@ -207,6 +249,7 @@ DSDVTriggerHandler::handle(Event *e)
 	prte->trigger_event = 0;
 	delete e;
       }
+  fclose(fp);
 }
 
 void
@@ -216,6 +259,8 @@ DSDV_Agent::cancelTriggersBefore(Time t)
 {
   rtable_ent *prte;
   Scheduler & s = Scheduler::instance ();
+
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
 
   for (table_->InitLoop (); (prte = table_->NextLoop ());)
     if (prte->trigger_event && prte->trigger_event->time_ < t)
@@ -237,6 +282,8 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
 
   assert(t >= now);
 
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
+
   if (prte->trigger_event) 
     s.cancel(prte->trigger_event);
   else
@@ -249,6 +296,8 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
 void
 DSDV_Agent::helper_callback (Event * e)
 {
+  FILE *fp = fopen("dsdv.log","a+");
+  fprintf(fp, "\n DSDV_Agent::helper_callback\n");
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
   rtable_ent *prte;
@@ -256,6 +305,8 @@ DSDV_Agent::helper_callback (Event * e)
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
   //DEBUG
   //printf("Triggered handler on 0x%08x\n", e);
+
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
 
   // Check for periodic callback
   if (periodic_callback_ && e == periodic_callback_)
@@ -279,8 +330,11 @@ DSDV_Agent::helper_callback (Event * e)
       
       // put the periodic update sending callback back onto the 
       // the scheduler queue for next time....
-      s.schedule (helper_, periodic_callback_, perup_ * (0.75 + jitter (0.25, be_random_)));
-      //s.schedule (helper_, periodic_callback_, perup_ + (jitter (0.25, be_random_)));
+      s.schedule (helper_, periodic_callback_, 
+		  perup_ * (0.75 + jitter (0.25, be_random_)));
+
+      fprintf(fp, "perup helper : %f \n", perup_);
+
 
       // this will take the place of any planned triggered updates
       lasttup_ = now;
@@ -337,6 +391,8 @@ DSDV_Agent::helper_callback (Event * e)
 
   if (e)
     delete e;
+
+fclose(fp);
 }
 
 void
@@ -574,6 +630,8 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
 
   Time now = Scheduler::instance().clock();
 
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
+
   char buf[1024];
   //  snprintf (buf, 1024, "%c %.5f _%d_ (%d,%d->%d,%d->%d,%d->%d,%lf)",
   snprintf (buf, 1024, "%c %.5f _%d_ (%d,%d->%d,%d->%d,%d->%d,%f)",
@@ -598,6 +656,8 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
 void
 DSDV_Agent::processUpdate (Packet * p)
 {
+  FILE *fp = fopen("dsdv.log","a+");
+  fprintf(fp, "\n\nDSDV_Agent::processUpdate\n");
   hdr_ip *iph = HDR_IP(p);
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
@@ -608,6 +668,8 @@ DSDV_Agent::processUpdate (Packet * p)
   unsigned char *w = d + 1;
   rtable_ent rte;		// new rte learned from update being processed
   rtable_ent *prte;		// ptr to entry *in* routing tbl
+
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
 
   //DEBUG
   //int src, dst;
@@ -806,14 +868,16 @@ DSDV_Agent::processUpdate (Packet * p)
   prte = table_->GetEntry(Address::instance().get_nodeaddr(iph->saddr()));
   if (prte)
     {
-      if (prte->timeout_event)
-	s.cancel (prte->timeout_event);
+      if (prte->timeout_event){
+	     s.cancel (prte->timeout_event);
+      }
       else
-	{
-	  prte->timeout_event = new Event ();
-	}
-      
-      s.schedule (helper_, prte->timeout_event, min_update_periods_ * perup_);
+    	{
+    	  prte->timeout_event = new Event ();
+    	}
+      fprintf(fp, "minup: %f perup_ : %f \n", min_update_periods_, perup_);
+      save(myaddr_, node_->speed(), perup_, min_update_periods_);
+      s.schedule (helper_, prte->timeout_event, minup_node[myaddr_] * perup_node[myaddr_]);
     }
   else
     { // If the first thing we hear from a node is a triggered update
@@ -838,7 +902,9 @@ DSDV_Agent::processUpdate (Packet * p)
       rte.q = 0;
       
       updateRoute(NULL, &rte);
-      s.schedule(helper_, rte.timeout_event, min_update_periods_ * perup_);
+      fprintf(fp, "minup: %f perup_ : %f \n", min_update_periods_, perup_ );
+      save(myaddr_, node_->speed(), perup_, min_update_periods_);
+      s.schedule(helper_, rte.timeout_event, minup_node[myaddr_] * perup_node[myaddr_]);
     }
   
   /*
@@ -846,7 +912,7 @@ DSDV_Agent::processUpdate (Packet * p)
    * call drop here.
    */
   Packet::free (p);
-
+  fclose(fp);
 }
 
 int 
@@ -877,6 +943,8 @@ DSDV_Agent::forwardPacket (Packet * p)
   hdr_cmn *hdrc = HDR_CMN (p);
   int dst;
   rtable_ent *prte;
+
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
   
   // We should route it.
   //printf("(%d)-->forwardig pkt\n",myaddr_);
@@ -1002,6 +1070,8 @@ DSDV_Agent::recv (Packet * p, Handler *)
   hdr_ip *iph = HDR_IP(p);
   hdr_cmn *cmh = HDR_CMN(p);
   int src = Address::instance().get_nodeaddr(iph->saddr());
+
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
   /*
    *  Must be a packet I'm originating...
    */
@@ -1103,6 +1173,8 @@ DSDV_Agent::DSDV_Agent (): Agent (PT_MESSAGE), ll_queue (0), seqno_ (0),
 void
 DSDV_Agent::startUp()
 {
+  FILE *fp = fopen("dsdv.log","a+");
+  fprintf(fp, "\n \nDSDV_Agent::startUp \n");
  Time now = Scheduler::instance().clock();
 
   subnet_ = Address::instance().get_subnetaddr(myaddr_);
@@ -1112,6 +1184,13 @@ DSDV_Agent::startUp()
   
   rtable_ent rte;
   bzero(&rte, sizeof(rte));
+
+  // define awal
+  perup_node[myaddr_]= 15;
+  minup_node[myaddr_]= 3;
+
+  save(myaddr_, node_->speed(), perup_, min_update_periods_);
+  fprintf(fp, "perup start: %f minup start : %f \n",perup_ , min_update_periods_);
 
   rte.dst = myaddr_;
   rte.hop = myaddr_;
@@ -1136,6 +1215,8 @@ DSDV_Agent::startUp()
   Scheduler::instance ().schedule (helper_, 
 				   periodic_callback_,
 				   jitter (DSDV_STARTUP_JITTER, be_random_));
+
+  fclose(fp);
 }
 
 int 

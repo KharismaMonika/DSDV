@@ -73,9 +73,13 @@ jitter (double max, int be_random_)
   return (be_random_ ? Random::uniform(max) : 0);
 }
 
-void DSDV_Agent::
-trace (char *fmt,...)
+void DSDV_Agent::trace (char *fmt,...)
 {
+  FILE *fp = fopen("trace.log","a+");
+  Time now = Scheduler::instance().clock ();
+  fprintf(fp, "%.5f|%d|DSDV_Agent::trace\n",now, myaddr_);
+  fclose(fp);
+
   va_list ap;
 
   if (!tracetarget)
@@ -87,15 +91,16 @@ trace (char *fmt,...)
   va_end (ap);
 }
 
-void 
-DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
+void DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
 {
   char buf[1024];
-
   unsigned char *walk = p->accessdata ();
 
   int ct = *(walk++);
   int seq, dst, met;
+
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "%.5f|%d|DSDV_Agent::tracepkt \n",now, myaddr_);
 
   snprintf (buf, 1024, "V%s %.5f _%d_ [%d]:", type, now, me, ct);
   while (ct--)
@@ -115,6 +120,8 @@ DSDV_Agent::tracepkt (Packet * p, double now, int me, const char *type)
   //trace("VTU %.5f %d", now, me);
   if (verbose_)
     trace ("%s", buf);
+
+  fclose(fp);
 }
 
 // Prints out an rtable element.
@@ -160,6 +167,9 @@ DSDVTriggerHandler::handle(Event *e)
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
   Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD;
 
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "\n%.5f|%d|DSDVTriggerHandler::handle|",now, a->myaddr_);
+
   for (a->table_->InitLoop(); (prte = a->table_->NextLoop());)
 	  if (prte->trigger_event == e) break;
 
@@ -169,6 +179,7 @@ DSDVTriggerHandler::handle(Event *e)
     {
 	    //DEBUG
 	    //printf("(%d)..Re-scheduling triggered update\n",a->myaddr_);
+      fprintf(fp, "reschedule trigger-update|");
       s.schedule(a->trigger_handler, e, next_possible - now);
       a->cancelTriggersBefore(next_possible);
       return;
@@ -176,46 +187,54 @@ DSDVTriggerHandler::handle(Event *e)
 
   update_type = 0;
   Packet * p = a->makeUpdate(/*in-out*/update_type);
+  fprintf(fp, "call makeUpdate untuk trigger");
       
   if (p != NULL) 
-    {	  
+    {	
+      fprintf(fp, "packet tdk null|");  
       if (update_type == 1)
-	{ // we got a periodic update, though we only asked for triggered
-	  // cancel and reschedule periodic update
-	  s.cancel(a->periodic_callback_);
-	  //DEBUG
-	  //printf("we got a periodic update, though asked for trigg\n");
-	  s.schedule (a->helper_, a->periodic_callback_, 
-		      a->perup_ * (0.75 + jitter (0.25, a->be_random_)));
-	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
-	}
+    	{ // we got a periodic update, though we only asked for triggered
+    	  // cancel and reschedule periodic update
+        fprintf(fp, "ketika trigger dan update berbarengan, cancel periodic, reschedule|");
+    	  s.cancel(a->periodic_callback_);
+    	  //DEBUG
+    	  //printf("we got a periodic update, though asked for trigg\n");
+    	  s.schedule (a->helper_, a->periodic_callback_, 
+    		      a->perup_ * (0.75 + jitter (0.25, a->be_random_)));
+    	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "PU");	  
+    	}
       else
-	{
-	  if (a->verbose_) a->tracepkt (p, now, a->myaddr_, "TU");	  
-	}
+    	{
+    	  if (a->verbose_){ a->tracepkt (p, now, a->myaddr_, "TU");	}  
+    	}
       assert (!HDR_CMN (p)->xmit_failure_);	// DEBUG 0x2	  
       s.schedule (a->target_, p, jitter(DSDV_BROADCAST_JITTER, a->be_random_));
-      
       a->lasttup_ = now; // even if we got a full update, it still counts
       // for our last triggered update time
+      fprintf(fp, "schedule broadcast, catat last update|\n");
     }
   
   // free this event
   for (a->table_->InitLoop (); (prte = a->table_->NextLoop ());)
     if (prte->trigger_event && prte->trigger_event == e)
       {
-	prte->trigger_event = 0;
-	delete e;
+      	prte->trigger_event = 0;
+      	delete e;
       }
+
+  fclose(fp);
 }
 
-void
-DSDV_Agent::cancelTriggersBefore(Time t)
+void DSDV_Agent::cancelTriggersBefore(Time t)
   // Cancel any triggered events scheduled to take place *before* time
   // t (exclusive)
 {
   rtable_ent *prte;
   Scheduler & s = Scheduler::instance ();
+
+  FILE *fp = fopen("trace.log","a+");
+  Time now = s.clock ();
+  fprintf(fp, "%.5f|%d|DSDV_Agent::cancelTriggersBefore \n",now, myaddr_);
 
   for (table_->InitLoop (); (prte = table_->NextLoop ());)
     if (prte->trigger_event && prte->trigger_event->time_ < t)
@@ -226,14 +245,17 @@ DSDV_Agent::cancelTriggersBefore(Time t)
 	delete prte->trigger_event;
 	prte->trigger_event = 0;
       }
+  fclose(fp);
 }
 
-void
-DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
+void DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
   // if no triggered update already pending, make one so
 {
   Scheduler & s = Scheduler::instance();
   Time now = Scheduler::instance().clock();
+
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "\n%.5f|%d|DSDV_Agent::needTriggeredUpdate|",now, myaddr_);
 
   assert(t >= now);
 
@@ -244,10 +266,11 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
   //DEBUG
   //printf("(%d)..scheduling trigger-update with event %x\n",myaddr_,prte->trigger_event);
   s.schedule(trigger_handler, prte->trigger_event, t - now);
+
+  fclose(fp);
 }
 
-void
-DSDV_Agent::helper_callback (Event * e)
+void DSDV_Agent::helper_callback (Event * e)
 {
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
@@ -257,11 +280,16 @@ DSDV_Agent::helper_callback (Event * e)
   //DEBUG
   //printf("Triggered handler on 0x%08x\n", e);
 
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "\n%.5f|%d|DSDV_Agent::helper_callback|",now, myaddr_);
+
   // Check for periodic callback
   if (periodic_callback_ && e == periodic_callback_)
     {
       update_type = 1;
       Packet *p = makeUpdate(/*in-out*/update_type);
+      fprintf(fp, "call makeUpdate|");
+
       if (verbose_)
 	{
 	  trace ("VPC %.5f _%d_", now, myaddr_);
@@ -274,13 +302,15 @@ DSDV_Agent::helper_callback (Event * e)
 	      // send out update packet jitter to avoid sync
 	      //DEBUG
 	      //printf("(%d)..sendout update pkt (periodic=%d)\n",myaddr_,update_type);
+        fprintf(fp, "broadcast periodick packet|" );
 	      s.schedule (target_, p, jitter(DSDV_BROADCAST_JITTER, be_random_));
       }
       
       // put the periodic update sending callback back onto the 
       // the scheduler queue for next time....
-      s.schedule (helper_, periodic_callback_, perup_ * (0.75 + jitter (0.25, be_random_)));
-      //s.schedule (helper_, periodic_callback_, perup_ + (jitter (0.25, be_random_)));
+      //s.schedule (helper_, periodic_callback_, perup_ * (0.75 + jitter (0.25, be_random_)));
+      s.schedule (helper_, periodic_callback_, perup_ + jitter (0.2 ,be_random_));
+      fprintf(fp, "penjadwalan next periodic dan catat last update|");
 
       // this will take the place of any planned triggered updates
       lasttup_ = now;
@@ -290,8 +320,10 @@ DSDV_Agent::helper_callback (Event * e)
   // Check for timeout
   // If it was a timeout, fix the routing table.
   for (table_->InitLoop (); (prte = table_->NextLoop ());)
-    if (prte->timeout_event && (prte->timeout_event == e))
+    if (prte->timeout_event && (prte->timeout_event == e)){
+      fprintf(fp, "timeout");
       break;
+    }
 
   // If it was a timeout, prte will be non-NULL
   // Note that in the if we don't touch the changed_at time, so that when
@@ -299,49 +331,60 @@ DSDV_Agent::helper_callback (Event * e)
   // one at that sequence number.
   if (prte)
 	  {
+      fprintf(fp, "fix rte|");
       if (verbose_)
-	{
-	  trace ("VTO %.5f _%d_ %d->%d", now, myaddr_, myaddr_, prte->dst);
-	  /*	  trace ("VTO %.5f _%d_ trg_sch %x on sched %x time %f", now, myaddr_, 
-		 trigupd_scheduled, 
-		 trigupd_scheduled ? s.lookup(trigupd_scheduled->uid_) : 0,
-		 trigupd_scheduled ? trigupd_scheduled->time_ : 0); */
-	}
+    	{
+    	  trace ("VTO %.5f _%d_ %d->%d", now, myaddr_, myaddr_, prte->dst);
+    	  /*	  trace ("VTO %.5f _%d_ trg_sch %x on sched %x time %f", now, myaddr_, 
+    		 trigupd_scheduled, 
+    		 trigupd_scheduled ? s.lookup(trigupd_scheduled->uid_) : 0,
+    		 trigupd_scheduled ? trigupd_scheduled->time_ : 0); */
+    	}
       
       for (table_->InitLoop (); (pr2 = table_->NextLoop ()); )
-	{
-	  if (pr2->hop == prte->dst && pr2->metric != BIG)
-	    {
-	      if (verbose_)
-		trace ("VTO %.5f _%d_ marking %d", now, myaddr_, pr2->dst);
-	      pr2->metric = BIG;
-	      pr2->advertise_ok_at = now;
-	      pr2->advert_metric = true;
-	      pr2->advert_seqnum = true;
-	      pr2->seqnum++;
-	      // And we have routing info to propogate.
-	      //DEBUG
-	      //printf("(%d)..we have routing info to propagate..trigger update for dst %d\n",myaddr_,pr2->dst);
-	      needTriggeredUpdate(pr2, now);
-	    }
-	}
+    	{
+    	  if (pr2->hop == prte->dst && pr2->metric != BIG)
+    	    {
+    	      if (verbose_)
+    		      {
+                trace ("VTO %.5f _%d_ marking %d", now, myaddr_, pr2->dst);
+              }
+    	      pr2->metric = BIG;
+    	      pr2->advertise_ok_at = now;
+    	      pr2->advert_metric = true;
+    	      pr2->advert_seqnum = true;
+    	      pr2->seqnum++;
+    	      // And we have routing info to propogate.
+    	      //DEBUG
+    	      //printf("(%d)..we have routing info to propagate..trigger update for dst %d\n",myaddr_,pr2->dst);
+    	      needTriggeredUpdate(pr2, now);
+            fprintf(fp, "panggil needTrigerredUpdate ada info rute baru untuk menuju %d",pr2->dst);
+    	    }
+    	}
 
       // OK the timeout expired, so we'll free it. No dangling pointers.
       prte->timeout_event = 0;    
     }
+
   else 
     { // unknown event on  queue
       fprintf(stderr,"DFU: unknown queue event\n");
      abort();
     }
 
-  if (e)
+  if (e){
     delete e;
+  }
+  
+  fclose(fp);
 }
 
 void
 DSDV_Agent::lost_link (Packet *p)
 {
+  FILE *fp = fopen("trace.log","a+");
+  Time now = Scheduler::instance().clock ();
+  fprintf(fp, "%.5f|%d|DSDV_Agent::lost_link \n",now, myaddr_);
   hdr_cmn *hdrc = HDR_CMN (p);
   rtable_ent *prte = table_->GetEntry (hdrc->next_hop_);
 
@@ -410,6 +453,8 @@ DSDV_Agent::lost_link (Packet *p)
       recv (p2, 0);
     }
 #endif
+
+fclose(fp);
 }
 
 static void 
@@ -429,6 +474,8 @@ DSDV_Agent::makeUpdate(int& periodic)
 {
 	//DEBUG
 	//printf("(%d)-->Making update pkt\n",myaddr_);
+
+
 	
   Packet *p = allocpkt ();
   hdr_ip *iph = hdr_ip::access(p);
@@ -442,8 +489,13 @@ DSDV_Agent::makeUpdate(int& periodic)
   int unadvertiseable;		// number of routes we can't advertise yet
 
   //printf("Update packet from %d [per=%d]\n", myaddr_, periodic);
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "\n%.5f|%d|DSDV_Agent::makeUpdate [per=%d]|",now, myaddr_, periodic);
+  
+
 
   // The packet we send wants to be broadcast
+  fprintf(fp, "paket send to broadcast|");
   hdrc->next_hop_ = IP_BROADCAST;
   hdrc->addr_type_ = NS_AF_INET;
   iph->daddr() = IP_BROADCAST << Address::instance().nodeshift();
@@ -466,11 +518,13 @@ DSDV_Agent::makeUpdate(int& periodic)
   if (change_count * 3 > rtbl_sz && change_count > 3)
     { // much of the table has changed, just do a periodic update now
       periodic = 1;
+      fprintf(fp, "jumlah isi tabel yg berubah %d,periodic update |",change_count);
     }
 
   // Periodic update... increment the sequence number...
   if (periodic)
     {
+      fprintf(fp, "periodic update increment seq num|");
       change_count = rtbl_sz - unadvertiseable;
       //printf("rtbsize-%d, unadvert-%d\n",rtbl_sz,unadvertiseable);
       rtable_ent rte;
@@ -503,7 +557,6 @@ DSDV_Agent::makeUpdate(int& periodic)
   if (change_count == 0) 
     {
       Packet::free(p); // allocated by us, no drop needed
-
       return NULL; // nothing to advertise
     }
 
@@ -561,7 +614,9 @@ DSDV_Agent::makeUpdate(int& periodic)
 	    }
 	  change_count--;
 	}
-    }  
+    }
+  fprintf(fp, "\n");
+  fclose(fp);  
   assert(change_count == 0);
   return p;
 }
@@ -573,6 +628,9 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
   assert(new_rte);
 
   Time now = Scheduler::instance().clock();
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "\n%.5f|%d|DSDV_Agent::updateRoute|",now, myaddr_);
+  fclose(fp);
 
   char buf[1024];
   //  snprintf (buf, 1024, "%c %.5f _%d_ (%d,%d->%d,%d->%d,%d->%d,%lf)",
@@ -601,6 +659,11 @@ DSDV_Agent::processUpdate (Packet * p)
   hdr_ip *iph = HDR_IP(p);
   Scheduler & s = Scheduler::instance ();
   double now = s.clock ();
+
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "\n%.5f|%d|DSDV_Agent::processUpdate|",now, myaddr_);
+
+
   
   // it's a dsdv packet
   int i;
@@ -614,9 +677,11 @@ DSDV_Agent::processUpdate (Packet * p)
   //src = Address::instance().get_nodeaddr(iph->src());
   //dst = Address::instance().get_nodeaddr(iph->dst());
   //printf("Received DSDV packet from %d(%d) to %d(%d) [%d)]\n", src, iph->sport(), dst, iph->dport(), myaddr_);
-
+  fprintf(fp, "terima paket dari %d |mulai akses datapacket|", iph->src());
+  // mulai akses data packet
   for (i = *d; i > 0; i--)
     {
+
       bool trigger_update = false;  // do we need to do a triggered update?
       nsaddr_t dst;
       prte = NULL;
@@ -627,13 +692,14 @@ DSDV_Agent::processUpdate (Packet * p)
       dst = dst << 8 | *(w++);
 
       if ((prte = table_->GetEntry (dst)))
-	{
-	  bcopy(prte, &rte, sizeof(rte));
-	}
+    	{
+    	  bcopy(prte, &rte, sizeof(rte));
+        //bcopy (src, dest, size) copy dr prte ke rte
+    	}
       else
-	{
-	  bzero(&rte, sizeof(rte));
-	}
+    	{
+    	  bzero(&rte, sizeof(rte));
+    	}
 
       rte.dst = dst;
       //rte.hop = iph->src();
@@ -644,177 +710,196 @@ DSDV_Agent::processUpdate (Packet * p)
       rte.seqnum = rte.seqnum << 8 | *(w++);
       rte.seqnum = rte.seqnum << 8 | *(w++);
       rte.changed_at = now;
-      if (rte.metric != BIG) rte.metric += 1;
+
+      if (rte.metric != BIG) {rte.metric += 1;}
 
       if (rte.dst == myaddr_)
-	{
-	  if (rte.metric == BIG && periodic_callback_)
-	    {
-	      // You have the last word on yourself...
-	      // Tell the world right now that I'm still here....
-	      // This is a CMU Monarch optimiziation to fix the 
-	      // the problem of other nodes telling you and your neighbors
-	      // that you don't exist described in the paper.
-	      s.cancel (periodic_callback_);
-	      s.schedule (helper_, periodic_callback_, 0);
-	    }
-	  continue;		// don't corrupt your own routing table.
+    	{
+        fprintf(fp, "dst alamatku|");
+    	  if (rte.metric == BIG && periodic_callback_)
+  	    {
+  	      // You have the last word on yourself...
+  	      // Tell the world right now that I'm still here....
+  	      // This is a CMU Monarch optimiziation to fix the 
+  	      // the problem of other nodes telling you and your neighbors
+  	      // that you don't exist described in the paper.
+          fprintf(fp, "metrik besar dan jadwal periodic, cancel periodic, reschedule|");
+  	      s.cancel (periodic_callback_);
+  	      s.schedule (helper_, periodic_callback_, 0);
+  	    }
+    	  continue;		// don't corrupt your own routing table.
 
-	}
+    	}
 
       /**********  fill in meta data for new route ***********/
       // If it's in the table, make it the same timeout and queue.
+      fprintf(fp, "pengisian metadata|");
       if (prte)
-	{ // we already have a route to this dst
-	  if (prte->seqnum == rte.seqnum)
-	    { // we've got an update with out a new squenece number
-	      // this update must have come along a different path
-	      // than the previous one, and is just the kind of thing
-	      // the weighted settling time is supposed to track.
+    	{ // we already have a route to this dst
+        //fprintf(fp, "sdh punya rute dst ini|");
+    	  if (prte->seqnum == rte.seqnum)
+  	    { // we've got an update with out a new squenece number
+  	      // this update must have come along a different path
+  	      // than the previous one, and is just the kind of thing
+  	      // the weighted settling time is supposed to track.
 
-	      // this code is now a no-op left here for clarity -dam XXX
-	      rte.wst = prte->wst;
-	      rte.new_seqnum_at = prte->new_seqnum_at;
-	    }
-	  else 
-	    { // we've got a new seq number, end the measurement period
-	      // for wst over the course of the old sequence number
-	      // and update wst with the difference between the last
-	      // time we changed the route (which would be when the 
-	      // best route metric arrives) and the first time we heard
-	      // the sequence number that started the measurement period
+  	      // this code is now a no-op left here for clarity -dam XXX
+  	      rte.wst = prte->wst;
+  	      rte.new_seqnum_at = prte->new_seqnum_at;
+  	    }
 
-	      // do we care if we've missed a sequence number, such
-	      // that we have a wst measurement period that streches over
-	      // more than a single sequence number??? XXX -dam 4/20/98
-	      rte.wst = alpha_ * prte->wst + 
-		(1.0 - alpha_) * (prte->changed_at - prte->new_seqnum_at);
-	      rte.new_seqnum_at = now;
-	    }
-	}
+    	  else 
+  	    { // we've got a new seq number, end the measurement period
+  	      // for wst over the course of the old sequence number
+  	      // and update wst with the difference between the last
+  	      // time we changed the route (which would be when the 
+  	      // best route metric arrives) and the first time we heard
+  	      // the sequence number that started the measurement period
+
+  	      // do we care if we've missed a sequence number, such
+  	      // that we have a wst measurement period that streches over
+  	      // more than a single sequence number??? XXX -dam 4/20/98
+  	      rte.wst = alpha_ * prte->wst + (1.0 - alpha_) * (prte->changed_at - prte->new_seqnum_at);
+  	      rte.new_seqnum_at = now;
+  	    }
+    	}
+
       else
-	{ // inititallize the wst for the new route
-	  rte.wst = wst0_;
-	  rte.new_seqnum_at = now;
-	}
+    	{ // inititallize the wst for the new route
+        fprintf(fp, "inisialisasi wst untuk rute baru|");
+    	  rte.wst = wst0_;
+    	  rte.new_seqnum_at = now;
+    	}
 	  
       // Now that we know the wst_, we know when to update...
+      //fprintf(fp, "tau wst, tau kapan update|");
       if (rte.metric != BIG && (!prte || prte->metric != BIG))
-	rte.advertise_ok_at = now + (rte.wst * 2);
+      {
+        rte.advertise_ok_at = now + (rte.wst * 2);
+      }
       else
-	rte.advertise_ok_at = now;
+      {
+        rte.advertise_ok_at = now;
+      }
 
       /*********** decide whether to update our routing table *********/
       if (!prte)
-	{ // we've heard from a brand new destination
-	  if (rte.metric < BIG) 
-	    {
-	      rte.advert_metric = true;
-	      trigger_update = true;
-	    }
-	  updateRoute(prte,&rte);
-	}
+    	{ // we've heard from a brand new destination
+        fprintf(fp, "mendengar ada tetangga baru|");
+    	  if (rte.metric < BIG) 
+    	    {
+    	      rte.advert_metric = true;
+    	      trigger_update = true;
+    	    }
+    	  updateRoute(prte,&rte);
+    	}
+
       else if ( prte->seqnum == rte.seqnum )
-	{ // stnd dist vector case
-	  if (rte.metric < prte->metric) 
-	    { // a shorter route!
-	      if (rte.metric == prte->last_advertised_metric)
-		{ // we've just gone back to a metric we've already advertised
-		  rte.advert_metric = false;
-		  trigger_update = false;
-		}
-	      else
-		{ // we're changing away from the last metric we announced
-		  rte.advert_metric = true;
-		  trigger_update = true;
-		}
-	      updateRoute(prte,&rte);
-	    }
-	  else
-	    { // ignore the longer route
-	    }
-	}
+    	{ // stnd dist vector case
+    	  if (rte.metric < prte->metric) 
+    	    { // a shorter route!
+    	      if (rte.metric == prte->last_advertised_metric)
+    		{ // we've just gone back to a metric we've already advertised
+    		  rte.advert_metric = false;
+    		  trigger_update = false;
+    		}
+    	      else
+    		{ // we're changing away from the last metric we announced
+    		  rte.advert_metric = true;
+    		  trigger_update = true;
+    		}
+    	      updateRoute(prte,&rte);
+    	    }
+    	  else
+    	    { // ignore the longer route
+    	    }
+    	}
+
       else if ( prte->seqnum < rte.seqnum )
-	{ // we've heard a fresher sequence number
-	  // we *must* believe its rt metric
-	  rte.advert_seqnum = true;	// we've got a new seqnum to advert
-	  if (rte.metric == prte->last_advertised_metric)
-	    { // we've just gone back to our old metric
-	      rte.advert_metric = false;
-	    }
-	  else
-	    { // we're using a metric different from our last advert
-	      rte.advert_metric = true;
-	    }
+    	{ // we've heard a fresher sequence number
+    	  // we *must* believe its rt metric
+    	  rte.advert_seqnum = true;	// we've got a new seqnum to advert
+    	  if (rte.metric == prte->last_advertised_metric)
+    	    { // we've just gone back to our old metric
+    	      rte.advert_metric = false;
+    	    }
+    	  else
+    	    { // we're using a metric different from our last advert
+    	      rte.advert_metric = true;
+    	    }
 
-	  updateRoute(prte,&rte);
+    	  updateRoute(prte,&rte);
 
-#ifdef TRIGGER_UPDATE_ON_FRESH_SEQNUM
-	  trigger_update = true;
-#else
-	  trigger_update = false;
-#endif
-	}
+        #ifdef TRIGGER_UPDATE_ON_FRESH_SEQNUM
+        	  trigger_update = true;
+        #else
+        	  trigger_update = false;
+        #endif
+    	}
+
       else if ( prte->seqnum > rte.seqnum )
-	{ // our neighbor has older sequnum info than we do
-	  if (rte.metric == BIG && prte->metric != BIG)
-	    { // we must go forth and educate this ignorant fellow
-	      // about our more glorious and happy metric
-	      prte->advertise_ok_at = now;
-	      prte->advert_metric = true;
-	      // directly schedule a triggered update now for 
-	      // prte, since the other logic only works with rte.*
-	      needTriggeredUpdate(prte,now);
-	    }
-	  else
-	    { // we don't care about their stale info
-	    }
-	}
+    	{ // our neighbor has older sequnum info than we do
+    	  if (rte.metric == BIG && prte->metric != BIG)
+    	    { // we must go forth and educate this ignorant fellow
+    	      // about our more glorious and happy metric
+    	      prte->advertise_ok_at = now;
+    	      prte->advert_metric = true;
+    	      // directly schedule a triggered update now for 
+    	      // prte, since the other logic only works with rte.*
+    	      needTriggeredUpdate(prte,now);
+    	    }
+    	  else
+    	    { // we don't care about their stale info
+    	    }
+    	}
       else
-	{
-	  fprintf(stderr,
-		  "%s DFU: unhandled adding a route entry?\n", __FILE__);
-	  abort();
-	}
+    	{
+    	  fprintf(stderr,
+    		  "%s DFU: unhandled adding a route entry?\n", __FILE__);
+    	  abort();
+    	}  
       
       if (trigger_update)
-	{
-	  prte = table_->GetEntry (rte.dst);
-	  assert(prte != NULL && prte->advertise_ok_at == rte.advertise_ok_at);
-	  needTriggeredUpdate(prte, prte->advertise_ok_at);
-	}
+    	{
+    	  prte = table_->GetEntry (rte.dst);
+    	  assert(prte != NULL && prte->advertise_ok_at == rte.advertise_ok_at);
+    	  needTriggeredUpdate(prte, prte->advertise_ok_at);
+    	}
 
       // see if we can send off any packets we've got queued
       if (rte.q && rte.metric != BIG)
-	{
-	  Packet *queued_p;
-	  while ((queued_p = rte.q->deque()))
-	  // XXX possible loop here  
-	  // while ((queued_p = rte.q->deque()))
-	  // Only retry once to avoid looping
-	  // for (int jj = 0; jj < rte.q->length(); jj++){
-	  //  queued_p = rte.q->deque();
-	    recv(queued_p, 0); // give the packets to ourselves to forward
-	  // }
-	  delete rte.q;
-	  rte.q = 0;
-	  table_->AddEntry(rte); // record the now zero'd queue
-	}
+    	{
+    	  Packet *queued_p;
+    	  while ((queued_p = rte.q->deque()))
+    	  // XXX possible loop here  
+    	  // while ((queued_p = rte.q->deque()))
+    	  // Only retry once to avoid looping
+    	  // for (int jj = 0; jj < rte.q->length(); jj++){
+    	  //  queued_p = rte.q->deque();
+    	    recv(queued_p, 0); // give the packets to ourselves to forward
+    	  // }
+    	  delete rte.q;
+    	  rte.q = 0;
+    	  table_->AddEntry(rte); // record the now zero'd queue
+    	}
     } // end of all destination mentioned in routing update packet
 
   // Reschedule the timeout for this neighbor
+  fprintf(fp, "reschedule timeout neighbor|");
   prte = table_->GetEntry(Address::instance().get_nodeaddr(iph->saddr()));
   if (prte)
     {
       if (prte->timeout_event)
-	s.cancel (prte->timeout_event);
+      {
+        s.cancel (prte->timeout_event);
+      }
       else
-	{
-	  prte->timeout_event = new Event ();
-	}
-      
+    	{
+    	  prte->timeout_event = new Event ();
+    	}
       s.schedule (helper_, prte->timeout_event, min_update_periods_ * perup_);
     }
+
   else
     { // If the first thing we hear from a node is a triggered update
       // that doesn't list the node sending the update as the first
@@ -846,7 +931,7 @@ DSDV_Agent::processUpdate (Packet * p)
    * call drop here.
    */
   Packet::free (p);
-
+  fclose(fp);
 }
 
 int 
@@ -878,6 +963,10 @@ DSDV_Agent::forwardPacket (Packet * p)
   int dst;
   rtable_ent *prte;
   
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "%.5f|%d|DSDV_Agent::forwardPacket \n",now, myaddr_);
+  fclose(fp);
+
   // We should route it.
   //printf("(%d)-->forwardig pkt\n",myaddr_);
   // set direction of pkt to -1 , i.e downward
@@ -991,6 +1080,11 @@ void
 DSDV_Agent::sendOutBCastPkt(Packet *p)
 {
   Scheduler & s = Scheduler::instance ();
+  FILE *fp = fopen("trace.log","a+");
+  Time now = s.clock ();
+  fprintf(fp, "%.5f|%d|DSDV_Agent::sendOutBCastPkt \n",now, myaddr_);
+  fclose(fp);
+
   // send out bcast pkt with jitter to avoid sync
   s.schedule (target_, p, jitter(DSDV_BROADCAST_JITTER, be_random_));
 }
@@ -999,6 +1093,12 @@ DSDV_Agent::sendOutBCastPkt(Packet *p)
 void
 DSDV_Agent::recv (Packet * p, Handler *)
 {
+  FILE *fp = fopen("trace.log","a+");
+  Time now = Scheduler::instance().clock ();
+  fprintf(fp, "\n%.5f|%d|DSDV_Agent::recv|",now, myaddr_);
+  fclose(fp);
+
+
   hdr_ip *iph = HDR_IP(p);
   hdr_cmn *cmh = HDR_CMN(p);
   int src = Address::instance().get_nodeaddr(iph->saddr());
@@ -1011,6 +1111,7 @@ DSDV_Agent::recv (Packet * p, Handler *)
      */
     cmh->size() += IP_HDR_LEN;    
     iph->ttl_ = IP_DEF_TTL;
+    fprintf(fp, "add IP header|");
   }
   /*
    *  I received a packet that I sent.  Probably
@@ -1018,6 +1119,7 @@ DSDV_Agent::recv (Packet * p, Handler *)
    */
   else if(src == myaddr_) {
     drop(p, DROP_RTR_ROUTE_LOOP);
+    fprintf(fp, "terjadi route loop|");
     return;
   }
   /*
@@ -1028,6 +1130,7 @@ DSDV_Agent::recv (Packet * p, Handler *)
      *  Check the TTL.  If it is zero, then discard.
      */
     if(--iph->ttl_ == 0) {
+      fprintf(fp, "TTL = 0 , drop packet|");
       drop(p, DROP_RTR_TTL);
       return;
     }
@@ -1042,7 +1145,8 @@ DSDV_Agent::recv (Packet * p, Handler *)
 	    // Drop pkt if rtg update from some other domain:
 	    // if (diff_subnet(iph->src())) 
 	    // drop(p, DROP_OUTSIDE_SUBNET);
-	    //else    
+	    //else 
+      //fprintf(fp, "src bukan alamatku, call processUpdate|");   
 	    processUpdate(p);
     }
   else if (iph->daddr() == ((int)IP_BROADCAST) &&
@@ -1059,6 +1163,7 @@ DSDV_Agent::recv (Packet * p, Handler *)
 	  }
   else 
     {
+      fprintf(fp, "forward packet|");
 	    forwardPacket(p);
     }
 }
@@ -1103,12 +1208,14 @@ DSDV_Agent::DSDV_Agent (): Agent (PT_MESSAGE), ll_queue (0), seqno_ (0),
 void
 DSDV_Agent::startUp()
 {
- Time now = Scheduler::instance().clock();
-
+  Time now = Scheduler::instance().clock();
   subnet_ = Address::instance().get_subnetaddr(myaddr_);
   //DEBUG
   address = Address::instance().print_nodeaddr(myaddr_);
   //printf("myaddress: %d -> %s\n",myaddr_,address);
+
+  FILE *fp = fopen("trace.log","a+");
+  fprintf(fp, "%.5f|%d|DSDV_Agent::startUp \n",now, myaddr_);
   
   rtable_ent rte;
   bzero(&rte, sizeof(rte));
@@ -1133,9 +1240,9 @@ DSDV_Agent::startUp()
 
   // kick off periodic advertisments
   periodic_callback_ = new Event ();
-  Scheduler::instance ().schedule (helper_, 
-				   periodic_callback_,
-				   jitter (DSDV_STARTUP_JITTER, be_random_));
+  Scheduler::instance ().schedule (helper_, periodic_callback_, jitter (DSDV_STARTUP_JITTER, be_random_));
+
+  fclose(fp);
 }
 
 int 

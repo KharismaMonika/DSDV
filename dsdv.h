@@ -66,6 +66,7 @@ typedef double Time;
 
 class DSDV_Helper;
 class DSDVTriggerHandler;
+void save(int alamat, double speed, double perup_ori);
 
 class DSDV_Agent : public Agent {
   friend class DSDV_Helper;

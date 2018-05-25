@@ -66,6 +66,11 @@ extern "C" {
    to send a triggered update?  If undef'd, we'll only trigger on
    routing metric changes */
 
+/* Percobaan Penyimpanan Data*/
+int count_node = 200; // 0 sampai 29
+// float *speed_node = (float*) malloc (count_node * sizeof(float));
+double *perup_node = (double*) malloc (count_node * sizeof(double));
+
 // Returns a random number between 0 and max
 static inline double 
 jitter (double max, int be_random_)
@@ -73,8 +78,31 @@ jitter (double max, int be_random_)
   return (be_random_ ? Random::uniform(max) : 0);
 }
 
-void DSDV_Agent::
-trace (char *fmt,...)
+void save(int alamat, double speed, double perup_ori){
+  FILE *fp = fopen("dsdv.log","a+");
+  unsigned int temp_perup = 40 - speed;
+  if(speed>25){
+    if (temp_perup >= 1)
+    {
+      perup_node[alamat]= temp_perup;
+      fprintf(fp, "addr: %d perup_node 1: %f\n",alamat, perup_node[alamat]);
+    }
+    else if (temp_perup < 1)
+    {
+      perup_node[alamat]= 1;
+      fprintf(fp, "addr: %d perup_node 2: %f\n",alamat, perup_node[alamat]);
+    }
+  }
+  
+  else {
+    perup_node[alamat]= perup_ori;
+    fprintf(fp, "addr: %d perup_node 3: %f \n",alamat, perup_node[alamat]);
+  }
+
+  fclose(fp);
+}
+
+void DSDV_Agent::trace (char *fmt,...)
 {
   va_list ap;
 
@@ -160,6 +188,8 @@ DSDVTriggerHandler::handle(Event *e)
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
   Time next_possible = a->lasttup_ + DSDV_MIN_TUP_PERIOD;
 
+  save(a->myaddr_, a->node_->speed(), a->perup_);
+
   for (a->table_->InitLoop(); (prte = a->table_->NextLoop());)
 	  if (prte->trigger_event == e) break;
 
@@ -217,6 +247,8 @@ DSDV_Agent::cancelTriggersBefore(Time t)
   rtable_ent *prte;
   Scheduler & s = Scheduler::instance ();
 
+  save(myaddr_, node_->speed(), perup_);
+
   for (table_->InitLoop (); (prte = table_->NextLoop ());)
     if (prte->trigger_event && prte->trigger_event->time_ < t)
       {
@@ -234,6 +266,7 @@ DSDV_Agent::needTriggeredUpdate(rtable_ent *prte, Time t)
 {
   Scheduler & s = Scheduler::instance();
   Time now = Scheduler::instance().clock();
+  save(myaddr_, node_->speed(), perup_);
 
   assert(t >= now);
 
@@ -256,6 +289,7 @@ DSDV_Agent::helper_callback (Event * e)
   int update_type;	 // we want periodic (=1) or triggered (=0) update?
   //DEBUG
   //printf("Triggered handler on 0x%08x\n", e);
+  save(myaddr_, node_->speed(), perup_);
 
   // Check for periodic callback
   if (periodic_callback_ && e == periodic_callback_)
@@ -279,8 +313,8 @@ DSDV_Agent::helper_callback (Event * e)
       
       // put the periodic update sending callback back onto the 
       // the scheduler queue for next time....
-      s.schedule (helper_, periodic_callback_, perup_ * (0.75 + jitter (0.25, be_random_)));
-      //s.schedule (helper_, periodic_callback_, perup_ + (jitter (0.25, be_random_)));
+      s.schedule (helper_, periodic_callback_, perup_node[myaddr_]  * (0.75 + jitter (0.25, be_random_)));
+      //s.schedule (helper_, periodic_callback_, perup_node[myaddr_] + (jitter (0.25, be_random_)));
 
       // this will take the place of any planned triggered updates
       lasttup_ = now;
@@ -573,6 +607,7 @@ DSDV_Agent::updateRoute(rtable_ent *old_rte, rtable_ent *new_rte)
   assert(new_rte);
 
   Time now = Scheduler::instance().clock();
+  save(myaddr_, node_->speed(), perup_);
 
   char buf[1024];
   //  snprintf (buf, 1024, "%c %.5f _%d_ (%d,%d->%d,%d->%d,%d->%d,%lf)",
@@ -608,6 +643,8 @@ DSDV_Agent::processUpdate (Packet * p)
   unsigned char *w = d + 1;
   rtable_ent rte;		// new rte learned from update being processed
   rtable_ent *prte;		// ptr to entry *in* routing tbl
+
+  save(myaddr_, node_->speed(), perup_);
 
   //DEBUG
   //int src, dst;
@@ -877,6 +914,8 @@ DSDV_Agent::forwardPacket (Packet * p)
   hdr_cmn *hdrc = HDR_CMN (p);
   int dst;
   rtable_ent *prte;
+
+  save(myaddr_, node_->speed(), perup_);
   
   // We should route it.
   //printf("(%d)-->forwardig pkt\n",myaddr_);
@@ -1002,6 +1041,9 @@ DSDV_Agent::recv (Packet * p, Handler *)
   hdr_ip *iph = HDR_IP(p);
   hdr_cmn *cmh = HDR_CMN(p);
   int src = Address::instance().get_nodeaddr(iph->saddr());
+
+  save(myaddr_, node_->speed(), perup_);
+
   /*
    *  Must be a packet I'm originating...
    */
